@@ -401,7 +401,7 @@ def load_model_from_parameter_dict(path_to_weights: str, inference_device: Union
     load the model and training parameters
     """
     # Load the model and training parameters on the target device
-    loaded_dict = torch.load(path_to_weights, map_location=inference_device, weights_only=True)
+    loaded_dict = torch.load(path_to_weights, map_location=inference_device, weights_only=False)
 
     # Extract the model and training parameters
     training_parameter_dict = loaded_dict['params']
@@ -421,7 +421,8 @@ def load_model_from_parameter_dict(path_to_weights: str, inference_device: Union
 def sample_model(
     model: LASErMPNN, batch_data: BatchData, sequence_temp: Optional[float], bb_noise: float, params: dict, use_edo: bool = False, chi_temp: Optional[float] = None,
     verbose: bool = False, disable_pbar: bool = False, fs_sequence_temp: Optional[float] = None, chi_min_p: float = 0.0, seq_min_p: float = 0.0,
-    ignore_chain_mask_zeros: bool = False, disabled_residues: Optional[List[str]] = ['X'], repack_all: bool = False
+    ignore_chain_mask_zeros: bool = False, disabled_residues: Optional[List[str]] = ['X'], repack_all: bool = False,
+    budget_residue_mask: Optional[torch.Tensor] = None, ala_budget: Optional[int] = 4, gly_budget: Optional[int] = 0,
 ) -> Sampled_Output:
     """
     Given a model and batch data, return the model's sampled output.
@@ -454,9 +455,10 @@ def sample_model(
 
         sampling_output = model.sample(
             batch_data, 
+            budget_residue_mask=budget_residue_mask, ala_budget=ala_budget, gly_budget=gly_budget,
             sequence_sample_temperature=sample_temperature_vector if sample_temperature_vector is not None else sequence_temp, 
             chi_angle_sample_temperature=chi_temp, disable_pbar=disable_pbar, chi_min_p=chi_min_p, seq_min_p=seq_min_p,
-            ignore_chain_mask_zeros=ignore_chain_mask_zeros, disabled_residues=disabled_residues, repack_all=repack_all
+            ignore_chain_mask_zeros=ignore_chain_mask_zeros, disabled_residues=disabled_residues, repack_all=repack_all,
         )
 
     else:
@@ -630,7 +632,7 @@ def run_inference(input_pdb_path: str, path_to_weights: str, sequence_temp: Opti
 
     # Load the model and run inference
     model, params = load_model_from_parameter_dict(path_to_weights, inference_device, strict=strict_load)
-    sampled_output = sample_model(model, batch_data, sequence_temp, bb_noise, params, use_edo, fs_sequence_temp=fs_sequence_temp, repack_all=repack_only) 
+    sampled_output = sample_model(model, batch_data, sequence_temp, bb_noise, params, use_edo, fs_sequence_temp=fs_sequence_temp, repack_all=repack_only, budget_residue_mask=budget_residue_mask) 
 
     sampled_probs = sampled_output.sequence_logits.softmax(dim=-1).gather(1, sampled_output.sampled_sequence_indices.unsqueeze(-1)).squeeze(-1)
 

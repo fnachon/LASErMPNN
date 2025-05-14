@@ -50,7 +50,7 @@ def create_sampling_output(num_residues: int, num_chi_bins: int, device: torch.d
     Initializes the output tensors to zeros.
     """
     sequence_logits = torch.zeros((num_residues, 21), device=device)
-    sampled_sequence_indices = torch.zeros((num_residues,), dtype=torch.long, device=device)
+    sampled_sequence_indices = torch.full((num_residues,), 21, dtype=torch.long, device=device)
 
     chi_logits = torch.zeros((num_residues, 4, num_chi_bins), device=device)
     chi_encoding = torch.full((num_residues, 4, num_chi_bins), torch.nan, device=device)
@@ -723,10 +723,12 @@ class LASErMPNN(nn.Module):
     
     @torch.no_grad()
     def sample(
-            self, batch: BatchData, sequence_sample_temperature: Optional[Union[float, torch.Tensor]] = None, 
+            self, batch: BatchData, 
+            budget_residue_mask: Optional[torch.Tensor] = None, ala_budget: int = 4, gly_budget: int = 0,
+            sequence_sample_temperature: Optional[Union[float, torch.Tensor]] = None, 
             chi_angle_sample_temperature: Optional[float] = None, disabled_residues: Optional[list] = ['X'], 
             disable_pbar: bool = False, return_encoder_embeddings: bool = False, chi_min_p: float = 0.0, seq_min_p: float = 0.0,
-            ignore_chain_mask_zeros: bool = False, disable_charged_residue_mask: Optional[torch.Tensor] = None, repack_all: bool = False
+            ignore_chain_mask_zeros: bool = False, disable_charged_residue_mask: Optional[torch.Tensor] = None, repack_all: bool = False,
     ) -> Sampled_Output:
         """
         If ignore_chain_mask_zeros is true, than ONLY sample residues that are True/1 in the chain mask and return XAA residues for all unsampled residues.
@@ -741,6 +743,9 @@ class LASErMPNN(nn.Module):
         assert batch.decoding_order is not None, "Decoding order must be specified in batch data."
         if sequence_sample_temperature is not None:
             assert (isinstance(sequence_sample_temperature, torch.Tensor) and (sequence_sample_temperature.shape[0] == batch.num_residues or sequence_sample_temperature.numel() == 1)) or isinstance(sequence_sample_temperature, (int, float)), f"Sequence sample temperature must be a scalar or a tensor of shape (num_residues,). Got {sequence_sample_temperature}."
+
+        if budget_residue_mask is None:
+            budget_residue_mask = torch.zeros(batch.num_residues, dtype=torch.bool, device=self.device)
 
         input_chi_angles = batch.chi_angles.nan_to_num()
 
@@ -771,6 +776,14 @@ class LASErMPNN(nn.Module):
             # Select current row in the batched decoding order.
             node_idces = batch.decoding_order[:, idx]
             node_idces = node_idces[~node_idces.isnan()].long()
+
+            per_batch_ala_counts = scatter((output_tensors.sampled_sequence_indices == aa_short_to_idx['A']).float(), batch.batch_indices, reduce='sum', dim_size=len(batch.batch_indices.unique()))
+            per_res_ala_over_budget = (per_batch_ala_counts >= ala_budget)[batch.batch_indices]
+            curr_res_ala_over_budget = per_res_ala_over_budget[node_idces] & budget_residue_mask[node_idces]
+
+            per_batch_gly_counts = scatter((output_tensors.sampled_sequence_indices == aa_short_to_idx['G']).float(), batch.batch_indices, reduce='sum', dim_size=len(batch.batch_indices.unique()))
+            per_res_gly_over_budget = (per_batch_gly_counts >= gly_budget)[batch.batch_indices]
+            curr_res_gly_over_budget = per_res_gly_over_budget[node_idces] & budget_residue_mask[node_idces]
 
             # 1 in chain mask tells us to take sequence/chi from input data, a 0 tells us to sample it with the model.
             curr_chain_mask = chain_mask[node_idces]
@@ -821,6 +834,9 @@ class LASErMPNN(nn.Module):
                 sampling_residue_mask = ~(curr_chain_mask.bool()) if not ignore_chain_mask_zeros else curr_chain_mask.bool()
                 for res_short in disabled_residues:
                     curr_out_logits[sampling_residue_mask, aa_short_to_idx[res_short]] = torch.finfo(curr_out_logits.dtype).min
+
+            curr_out_logits[curr_res_ala_over_budget, aa_short_to_idx['A']] = torch.finfo(curr_out_logits.dtype).min
+            curr_out_logits[curr_res_gly_over_budget, aa_short_to_idx['G']] = torch.finfo(curr_out_logits.dtype).min
             
             if disable_charged_residue_mask is not None:
                 curr_disable_charged_mask = disable_charged_residue_mask[node_idces]

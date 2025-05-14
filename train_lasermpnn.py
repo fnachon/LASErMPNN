@@ -161,19 +161,19 @@ def prepare_dataloaders(rank, world_size, params, epoch_num, dataset, collate_fn
 
     # The sampler is responsible for shuffling the dataset according to the current epoch in a way that should be deterministic between workers.
     # The DistributedSamplerWrapper divides current samples between workers.
-    test_sampler = LigandMPNNDatasetSampler(dataset, params, is_train=False, seed=seed, max_protein_length=params['max_protein_size'])
+    test_sampler = LigandMPNNDatasetSampler(dataset, params, is_train=False, seed=seed, max_protein_length=params['max_protein_size'], soluble_proteins_only=params['soluble_proteins_only'])
     test_dist_sampler = DistributedSamplerWrapper(test_sampler, num_replicas=world_size, rank=rank, shuffle=False)
     test_dataloader = DataLoader(dataset, batch_sampler=test_dist_sampler, collate_fn=collate_fn)
 
     if test_only:
         return test_dataloader
 
-    train_sampler = LigandMPNNDatasetSampler(dataset, params, is_train=True, seed=seed, max_protein_length=params['max_protein_size'])
+    train_sampler = LigandMPNNDatasetSampler(dataset, params, is_train=True, seed=seed, max_protein_length=params['max_protein_size'], soluble_proteins_only=params['soluble_proteins_only'])
     train_dist_sampler = DistributedSamplerWrapper(train_sampler, num_replicas=world_size, rank=rank, shuffle=False)
     train_dataloader = DataLoader(dataset, batch_sampler=train_dist_sampler, collate_fn=collate_fn) 
 
     # Sanity check that sampler returns same indices for all workers.
-    print(f'GPU-{rank}', list(train_sampler))
+    # print(f'GPU-{rank}', list(train_sampler))
 
     return train_dataloader, test_dataloader
 
@@ -704,12 +704,15 @@ if __name__ == "__main__":
         }
     }
 
+    ALTERNATE_DATABASE_PATH = Path('/nfs/polizzi/bfry/programs/LASErMPNN-Public/')
     params = {
-        'debug': (debug := True),
+        'debug': (debug := False),
         'use_wandb': True and not debug,
         'use_data_augmentations': (augment := True),
         'random_seed': None if not debug else 42,
         'master_port': '12987',
+
+        'soluble_proteins_only': True,
 
         # Idealizes all residue frames if set to True, not ideal for foldability of natural proteins, but may be more useful for de novo design.
         'recompute_all_cb_atoms': True, 
@@ -722,15 +725,19 @@ if __name__ == "__main__":
         'devices': VISIBLE_DEVICES,
 
         'checkpoint_to_resume_from': None,
-        'output_weights_checkpoint_prefix': CURR_FILE_DIR_PATH / 'model_weights/training_checkpoint_lmpnn_split',
+        'output_weights_checkpoint_prefix': CURR_FILE_DIR_PATH / 'model_weights/training_checkpoint_lmpnn_split_soluble',
         
         'pretrained_ligand_encoder_weights': CURR_FILE_DIR_PATH / 'model_weights/pretrained_ligand_encoder_weights.pt',
         # 'pretrained_ligand_encoder_weights': default_ligand_encoder_params, # Uncomment to disable pretrained ligand encoder.
 
-        'raw_dataset_path': CURR_FILE_DIR_PATH / 'databases/pdb_dataset/dataset_shelve',
-        'metadata_dataset_path': CURR_FILE_DIR_PATH / 'databases/pdb_dataset/metadata_shelve',
-        'clustering_dataframe_path': CURR_FILE_DIR_PATH / 'databases/pdb_dataset/cluster_representative_add_bromo.pkl',
-        'subcluster_pickle_path': CURR_FILE_DIR_PATH / 'databases/pdb_dataset/subcluster_pickle.pkl',
+        # 'raw_dataset_path': CURR_FILE_DIR_PATH / 'databases/pdb_dataset/dataset_shelve',
+        # 'metadata_dataset_path': CURR_FILE_DIR_PATH / 'databases/pdb_dataset/metadata_shelve',
+        # 'clustering_dataframe_path': CURR_FILE_DIR_PATH / 'databases/pdb_dataset/cluster_representative_add_bromo.pkl',
+        # 'subcluster_pickle_path': CURR_FILE_DIR_PATH / 'databases/pdb_dataset/subcluster_pickle.pkl',
+        'raw_dataset_path': ALTERNATE_DATABASE_PATH / 'databases/pdb_dataset/dataset_shelve',
+        'metadata_dataset_path': ALTERNATE_DATABASE_PATH / 'databases/pdb_dataset/metadata_shelve',
+        'clustering_dataframe_path': ALTERNATE_DATABASE_PATH / 'databases/pdb_dataset/cluster_representative_add_bromo.pkl',
+        'subcluster_pickle_path': ALTERNATE_DATABASE_PATH / 'databases/pdb_dataset/subcluster_pickle.pkl',
 
         'num_epochs': 500,
         'batch_size': 6_000, # Practically, this is the batch size per GPU... so 5_000 * num_devices = total batch size.

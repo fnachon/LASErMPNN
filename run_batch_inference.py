@@ -11,6 +11,7 @@ from typing import *
 from pathlib import Path
 
 import torch
+import numpy as np
 import prody as pr
 from tqdm import tqdm
 
@@ -28,7 +29,8 @@ def _run_inference(
     chi_min_p: float = 0.0, seq_min_p: float = 0.0, use_water: bool = False, disable_pbar: bool = False,
     ignore_chain_mask_zeros: bool = False, disabled_residues_list: List[str] = ['X'], bb_noise: float = 0.0,
     fix_beta: bool = False, repack_only_input_sequence: bool = False, 
-    first_shell_sequence_temp: Optional[float] = None, ignore_ligand: bool = False
+    first_shell_sequence_temp: Optional[float] = None, ignore_ligand: bool = False, 
+    budget_residue_sele_string: str='', ala_budget: Optional[int]=None, gly_budget: Optional[int]=None,
 ) -> Tuple[Sampled_Output, torch.Tensor, torch.Tensor, torch.Tensor, BatchData, ProteinComplexData]:
     model.eval()
 
@@ -39,6 +41,14 @@ def _run_inference(
     else:
         protein_hv = input_file_path
         data = ProteinComplexData(protein_hv, 'input', use_input_water=use_water, verbose=not disable_pbar)
+
+    budget_residue_mask = None
+    if budget_residue_sele_string != '':
+        reference_mask_res_indices = protein_hv.getAtoms().select(f"protein and name CA").getResindices()
+        mask_sele_indices = protein_hv.getAtoms().select(f"(same residue as ({budget_residue_sele_string})) and name CA").getResindices()
+        budget_residue_mask = torch.from_numpy(
+            np.isin(reference_mask_res_indices, mask_sele_indices)
+        ).to(model.device).unsqueeze(0).expand(designs_per_input, -1).flatten()
 
     batch_data = data.output_batch_data(fix_beta=fix_beta, num_copies=designs_per_input)
 
@@ -58,7 +68,8 @@ def _run_inference(
         disable_pbar=disable_pbar, chi_temp=chi_temp, chi_min_p=chi_min_p, 
         seq_min_p=seq_min_p, ignore_chain_mask_zeros=ignore_chain_mask_zeros, 
         disabled_residues=disabled_residues_list, repack_all=repack_only_input_sequence, 
-        fs_sequence_temp=first_shell_sequence_temp
+        fs_sequence_temp=first_shell_sequence_temp,
+        budget_residue_mask=budget_residue_mask, ala_budget=ala_budget, gly_budget=gly_budget
     )
     full_atom_coords = model.rotamer_builder.build_rotamers(batch_data.backbone_coords, sampled_output.sampled_chi_degrees, sampled_output.sampled_sequence_indices, add_nonrotatable_hydrogens=True)
     assert isinstance(full_atom_coords, torch.Tensor), "unreachable."
@@ -76,7 +87,8 @@ def run_inference(
         inference_device, designs_per_input, designs_per_batch, use_water, ignore_key_mismatch, 
         verbose=True, seq_min_p=0.0, chi_min_p=0.0, output_idx_offset=0, disabled_residues='', 
         fix_beta=False, repack_only_input_sequence=False, 
-        first_shell_sequence_temp=None, ignore_ligand=False
+        first_shell_sequence_temp=None, ignore_ligand=False,
+        budget_residue_sele_string: str='', ala_budget: Optional[int]=None, gly_budget: Optional[int]=None
 ):
     sequence_temp = float(sequence_temp) if sequence_temp else None
     chi_temp = float(chi_temp) if chi_temp else None
@@ -124,7 +136,9 @@ def run_inference(
                 use_water=use_water, sequence_temp=sequence_temp, chi_temp=chi_temp, chi_min_p=chi_min_p, seq_min_p=seq_min_p, 
                 disabled_residues_list=disabled_residues_list, disable_pbar=not verbose,
                 fix_beta=fix_beta, repack_only_input_sequence=repack_only_input_sequence,
-                first_shell_sequence_temp=first_shell_sequence_temp, ignore_ligand=ignore_ligand
+                first_shell_sequence_temp=first_shell_sequence_temp, ignore_ligand=ignore_ligand,
+                budget_residue_sele_string=budget_residue_sele_string, 
+                ala_budget=ala_budget, gly_budget=gly_budget,
             )
             
             for idx in range(curr_num_to_design):
@@ -166,6 +180,11 @@ def parse_args(default_weights_path: str):
     parser.add_argument('--fix_beta', action='store_true', help='If B-factors are set to 1, fixes the residue and rotamer, if not, designs that position.')
     parser.add_argument('--repack_only_input_sequence', action='store_true', help='Repacks the input sequence without changing the sequence.')
     parser.add_argument('--ignore_ligand', action='store_true', help='Ignore ligand in sampling.')
+
+    parser.add_argument('--budget_residue_sele_string', default=None, help='')
+    parser.add_argument('--ala_budget', type=int, default=4, help='')
+    parser.add_argument('--gly_budget', type=int, default=0, help='')
+
     parsed_args = parser.parse_args()
 
     return vars(parsed_args)
