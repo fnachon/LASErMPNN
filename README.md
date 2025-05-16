@@ -38,12 +38,11 @@ If not, run `conda config --set-solver libmamba`.
 
 ### Running Inference
 
-This script outputs a single pdb file named `laser_output.pdb` and is useful for testing:
-
-
 ```bash
 python -m LASErMPNN.run_inference -h
 ```
+
+This script outputs a single pdb file named `laser_output.pdb` and is useful for testing:
 
 
 ```text
