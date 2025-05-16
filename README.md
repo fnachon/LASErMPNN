@@ -39,6 +39,11 @@ If not, run `conda config --set-solver libmamba`.
 This script outputs a single pdb file named `laser_output.pdb` and is useful for testing:
 
 
+```bash
+python -m LASErMPNN.run_inference -h
+```
+
+
 ```text
 usage: run_inference.py [-h] [--model_weights MODEL_WEIGHTS] [--output_path OUTPUT_PATH] [--temp SEQUENCE_TEMP] [--fs_sequence_temp FS_SEQUENCE_TEMP] [--bb_noise BACKBONE_NOISE] [--device DEVICE] [--fix_beta] [--ignore_statedict_mismatch]
                         [--ebd] [--repack_only] [--ignore_ligand]
@@ -73,6 +78,10 @@ optional arguments:
 
 
 ### Running Batch Inference
+
+```bash
+python -m LASErMPNN.run_batch_inference -h
+```
 
 This script is useful to generate multiple designs for one or multiple inputs. Creates an output directory with subdirectories for each input file (unless run with a single input file).
 

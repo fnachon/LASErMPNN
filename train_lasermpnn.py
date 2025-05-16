@@ -7,9 +7,10 @@ Set the visible device indices immediately.
 import os
 from pathlib import Path
 
-# Need to do this before importing any torch modules.
-VISIBLE_DEVICES = ['cuda:0', 'cuda:1', 'cuda:2', 'cuda:3']
-os.environ['CUDA_VISIBLE_DEVICES'] = ','.join([x.split(':')[-1] for x in VISIBLE_DEVICES])
+if __name__ == '__main__':
+    # Need to do this before importing any torch modules.
+    VISIBLE_DEVICES = ['cuda:0', 'cuda:1', 'cuda:2', 'cuda:3']
+    os.environ['CUDA_VISIBLE_DEVICES'] = ','.join([x.split(':')[-1] for x in VISIBLE_DEVICES])
 
 import wandb
 import numpy as np
@@ -19,12 +20,12 @@ from copy import deepcopy
 import matplotlib.pyplot as plt
 from collections import defaultdict
 
-from utils.model import LASErMPNN
-from utils.optimizer import get_std_opt, NoamOpt
-from utils.helper_functions import compute_sidechain_rmsd
-from utils.build_rotamers import compute_chi_angle_accuracies
-from utils.constants import aa_short_to_idx, aa_idx_to_short, aa_to_chi_angle_atom_map
-from utils.pdb_dataset import UnclusteredProteinChainDataset, LigandMPNNDatasetSampler, collate_sampler_data, BatchData, invert_dict, chain_list_to_protein_chain_dict
+from LASErMPNN.utils.model import LASErMPNN
+from LASErMPNN.utils.optimizer import get_std_opt, NoamOpt
+from LASErMPNN.utils.helper_functions import compute_sidechain_rmsd
+from LASErMPNN.utils.build_rotamers import compute_chi_angle_accuracies
+from LASErMPNN.utils.constants import aa_short_to_idx, aa_idx_to_short, aa_to_chi_angle_atom_map
+from LASErMPNN.utils.pdb_dataset import UnclusteredProteinChainDataset, LigandMPNNDatasetSampler, collate_sampler_data, BatchData, invert_dict, chain_list_to_protein_chain_dict
 
 import torch
 import torch.nn.functional as F

@@ -19,10 +19,9 @@ from dataclasses import dataclass, field
 
 from typing import Tuple, List, Optional, Union
 
-from utils.model import LASErMPNN, Sampled_Output
-from utils.pdb_dataset import BatchData, UnprocessedLigandData, idealize_backbone_coords
-from utils.constants import MAX_NUM_RESIDUE_ATOMS, aa_short_to_idx, aa_idx_to_short, aa_idx_to_long, aa_to_chi_angle_atom_index, dataset_atom_order, aa_long_to_short, atom_to_atomic_number, hydrogen_extended_dataset_atom_order 
-
+from LASErMPNN.utils.model import LASErMPNN, Sampled_Output
+from LASErMPNN.utils.pdb_dataset import BatchData, UnprocessedLigandData, idealize_backbone_coords
+from LASErMPNN.utils.constants import MAX_NUM_RESIDUE_ATOMS, aa_short_to_idx, aa_idx_to_short, aa_idx_to_long, aa_to_chi_angle_atom_index, dataset_atom_order, aa_long_to_short, atom_to_atomic_number, hydrogen_extended_dataset_atom_order 
 
 CURR_FILE_DIR_PATH = Path(__file__).parent
 

@@ -10,7 +10,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from typing import Tuple, Optional, Union
-from utils.constants import MAX_NUM_RESIDUE_ATOMS, MAX_NUM_PROTONATED_RESIDUE_ATOMS, MAX_NUM_TRIPLETS_PER_RESIDUE, CHI_BIN_MIN, CHI_BIN_MAX, COVALENT_HYDROGEN_BOND_MAX_DISTANCE, ideal_aa_coords, ideal_bond_lengths, ideal_bond_angles, aa_to_chi_angle_atom_index, aa_to_leftover_atoms, alignment_indices, aa_short_to_idx, ideal_prot_aa_coords, aa_to_hydrogen_alignment_triad_indices, aa_to_hydrogen_alignment_index, optional_hydrogen_map, hydrogen_extended_dataset_atom_order, aa_to_chi_angle_mask, atom_to_atomic_number
+from .constants import MAX_NUM_RESIDUE_ATOMS, MAX_NUM_PROTONATED_RESIDUE_ATOMS, MAX_NUM_TRIPLETS_PER_RESIDUE, CHI_BIN_MIN, CHI_BIN_MAX, COVALENT_HYDROGEN_BOND_MAX_DISTANCE, ideal_aa_coords, ideal_bond_lengths, ideal_bond_angles, aa_to_chi_angle_atom_index, aa_to_leftover_atoms, alignment_indices, aa_short_to_idx, ideal_prot_aa_coords, aa_to_hydrogen_alignment_triad_indices, aa_to_hydrogen_alignment_index, optional_hydrogen_map, hydrogen_extended_dataset_atom_order, aa_to_chi_angle_mask, atom_to_atomic_number
 
 class RotamerBuilder(nn.Module):
     """

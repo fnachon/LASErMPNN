@@ -394,9 +394,9 @@ class BatchData():
             self, rotamer_builder: RotamerBuilder, ligand_featurizer: LigandFeaturizer, pr_pr_knn_graph_k: int, 
             lig_pr_distance_cutoff: float, lig_pr_knn_graph_k: int, lig_lig_knn_graph_k: int, 
             protein_training_noise: float, ligand_training_noise: float, 
-            subgraph_only_dropout_rate: float, num_adjacent_residues_to_drop: int, build_hydrogens: bool, 
+            subgraph_only_dropout_rate: float = 0.0, num_adjacent_residues_to_drop: int = 0, build_hydrogens: bool = True, 
             use_aliphatic_ligand_hydrogens: bool = True
-    ):
+    ) -> None:
         """
         Computes a KNN graph using CA coordinates and distances between all pairs of atoms.
         Stores the edge_index and edge_distance tensors in the BatchData object.
@@ -1320,7 +1320,7 @@ class UnclusteredProteinChainDataset(Dataset):
     """
     def __init__(self, params):
 
-        metadata_shelve_path = params['metadata_dataset_path']# + ('.debug' if params['debug'] else '')
+        metadata_shelve_path = str(params['metadata_dataset_path'])# + ('.debug' if params['debug'] else '')
         if not os.path.exists(metadata_shelve_path + '.dat'):
             print("Computing dataset metadata shelve, this only needs to run once.")
             compute_metadata_from_raw_data_shelve(params['raw_dataset_path'], metadata_shelve_path, params['debug'])

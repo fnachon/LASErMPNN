@@ -14,10 +14,9 @@ import torch
 import prody as pr
 from tqdm import tqdm
 
-from utils.model import Sampled_Output
-from utils.pdb_dataset import BatchData
-from run_inference import get_protein_hierview, load_model_from_parameter_dict, sample_model, output_protein_structure, output_ligand_structure, ProteinComplexData
-
+from LASErMPNN.utils.model import Sampled_Output
+from LASErMPNN.utils.pdb_dataset import BatchData
+from LASErMPNN.run_inference import get_protein_hierview, load_model_from_parameter_dict, sample_model, output_protein_structure, output_ligand_structure, ProteinComplexData
 
 CURR_FILE_DIR_PATH = Path(__file__).parent
 
