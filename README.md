@@ -2,7 +2,9 @@
 
 ### Check out the paper [here](https://www.biorxiv.org/content/10.1101/2025.04.22.649862v1)!
 
+
 ![A block diagram of the LASErMPNN architecture depicting information flow through the network.](./images/laser_block_diagram.png)
+
 
 > [!WARNING]
 > A major difference between LASErMPNN and LigandMPNN is that LASErMPNN was trained on protonated structures. 
