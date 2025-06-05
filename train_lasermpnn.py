@@ -7,9 +7,10 @@ Set the visible device indices immediately.
 import os
 from pathlib import Path
 
-# Need to do this before importing any torch modules.
-VISIBLE_DEVICES = ['cuda:0', 'cuda:1', 'cuda:2', 'cuda:3']
-os.environ['CUDA_VISIBLE_DEVICES'] = ','.join([x.split(':')[-1] for x in VISIBLE_DEVICES])
+if __name__ == '__main__':
+    # Need to do this before importing any torch modules.
+    VISIBLE_DEVICES = ['cuda:0', 'cuda:1', 'cuda:2', 'cuda:3']
+    os.environ['CUDA_VISIBLE_DEVICES'] = ','.join([x.split(':')[-1] for x in VISIBLE_DEVICES])
 
 import wandb
 import numpy as np

@@ -43,7 +43,7 @@ def _run_inference(
         data = ProteinComplexData(protein_hv, 'input', use_input_water=use_water, verbose=not disable_pbar)
 
     budget_residue_mask = None
-    if budget_residue_sele_string != '':
+    if budget_residue_sele_string != '' and budget_residue_sele_string is not None:
         reference_mask_res_indices = protein_hv.getAtoms().select(f"protein and name CA").getResindices()
         mask_sele_indices = protein_hv.getAtoms().select(f"(same residue as ({budget_residue_sele_string})) and name CA").getResindices()
         budget_residue_mask = torch.from_numpy(

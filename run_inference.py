@@ -384,11 +384,15 @@ def create_ligand_info(residue: pr.AtomGroup, residue_code: ResidueIdentifier) -
     return LigandInfo(torch.from_numpy(residue.getCoords()), list(residue_elements), list(residue.getNames()), residue_code) # type: ignore
 
 
-def get_protein_hierview(path_to_pdb: str) -> pr.HierView:
+def get_protein_hierview(path_to_pdb: str, ignore_ligand: bool = False) -> pr.HierView:
     """
     Given a path to a PDB file, return a prody HierView object representing the protein structure.
     """
     protein = pr.parsePDB(path_to_pdb)
+
+    if ignore_ligand:
+        protein = protein.protein.copy()
+
     assert isinstance(protein, pr.AtomGroup), "Prody parsePDB failed to return an AtomGroup"
     assert isinstance(protein.protein, pr.atomic.selection.Selection), "Prody object has no protein residues."
 
