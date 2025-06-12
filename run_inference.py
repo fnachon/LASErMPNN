@@ -6,6 +6,7 @@ Once model is trained, this script can be used to run inference on a given PDB f
 Benjamin Fry (bfry@g.harvard.edu)
 """
 
+from copy import deepcopy
 from pathlib import Path
 import numpy as np
 import torch
@@ -21,9 +22,11 @@ from typing import Tuple, List, Optional, Union
 
 from LASErMPNN.utils.model import LASErMPNN, Sampled_Output
 from LASErMPNN.utils.pdb_dataset import BatchData, UnprocessedLigandData, idealize_backbone_coords
-from LASErMPNN.utils.constants import MAX_NUM_RESIDUE_ATOMS, aa_short_to_idx, aa_idx_to_short, aa_idx_to_long, aa_to_chi_angle_atom_index, dataset_atom_order, aa_long_to_short, atom_to_atomic_number, hydrogen_extended_dataset_atom_order 
+from LASErMPNN.utils.build_rotamers import RotamerBuilder
+from LASErMPNN.utils.constants import MAX_NUM_RESIDUE_ATOMS, aa_short_to_idx, aa_idx_to_short, aa_idx_to_long, aa_to_chi_angle_atom_index, dataset_atom_order, aa_long_to_short, atom_to_atomic_number, hydrogen_extended_dataset_atom_order, atomic_number_to_atom
 
 CURR_FILE_DIR_PATH = Path(__file__).parent
+rotamer_builder_cpu = RotamerBuilder(5.0)
 
 
 class LigandInfo:
@@ -131,6 +134,7 @@ class ProteinComplexData:
 
     use_input_water: bool = False
     contains_water: bool = False
+    treat_noncanonical_as_ligand: bool = False
     verbose: bool = True
 
     # Residue-level metadata.
@@ -146,6 +150,15 @@ class ProteinComplexData:
 
     def __post_init__(self):
         all_data = defaultdict(list)
+
+        # Create an all glycine version of the backbone to make sure we can correctly compute the phi/psi angles.
+        # NCAAs mess this up.
+        all_gly_resids = {}
+        all_gly_protein = get_all_gly_protein(self.prody_protein)
+        for idx, segchain in enumerate(all_gly_protein.getHierView()):
+            for residue in segchain:
+                all_gly_resids[(segchain.getSegname(), segchain.getChid(), residue.getResnum(), residue.getIcode())] = residue
+
         for idx, segchain in enumerate(self.prody_protein):
             assert isinstance(segchain, pr.atomic.chain.Chain), "Prody object is not a chain."
 
@@ -154,33 +167,54 @@ class ProteinComplexData:
                 resname, resnum, icode, bfac = residue.getResname(), residue.getResnum(), residue.getIcode(), residue.getBetas()
                 residue_identifier = ResidueIdentifier(segchain.getSegname(), segchain.getChid(), resnum, icode, resname) # type: ignore
 
+                olc_resname = 'X'
+                if resname in aa_long_to_short:
+                    olc_resname = aa_long_to_short[resname]
+
                 if resname == 'HOH':
+                    # Handle water.
                     if not self.contains_water and not self.use_input_water:
                         if self.verbose: print(f'Found water in {self.pdb_code}, it is currently being ignored.')
                         self.contains_water = True
                     elif self.use_input_water:
                         self.ligand_info.add_ligand(create_ligand_info(residue, residue_identifier))
 
-                elif is_amino_acid(residue) and not any(residue.getFlags('hetatm')):
-                    olc_resname = 'X'
-                    if resname in aa_long_to_short:
-                        olc_resname = aa_long_to_short[resname]
-
-                    bfac_max = max(bfac)
-
+                elif is_amino_acid(residue):
+                    gly_residue = all_gly_resids[(segchain.getSegname(), segchain.getChid(), resnum, icode)]
+                    phi, psi = compute_phi_psi_angles(gly_residue) # type: ignore
+                    phi_psi = torch.tensor([phi, psi], dtype=torch.float)
                     residue_coords, residue_sequence_index = get_residue_coords(residue, olc_resname)
 
-                    if residue_coords[:3].isnan().any().item():
-                        if self.verbose: print(residue, 'is missing backbone (N, CA, C) atoms. Dropping it from the structure...')
-                        continue
+                    if not (self.treat_noncanonical_as_ligand and olc_resname == 'X'):
+                        # Handle canonical amino acids and noncanonicals if not using them as part of a ligand.
+                        if residue_coords[:3].isnan().any().item():
+                            if self.verbose: print(residue, 'is missing backbone (N, CA, C) atoms. Dropping it from the structure...')
+                            continue
 
-                    phi, psi = compute_phi_psi_angles(residue) # type: ignore
-                    all_data['sequence_indices'].append(residue_sequence_index)
-                    all_data['heavy_atom_coords'].append(residue_coords)
-                    all_data['residue_identifiers'].append(residue_identifier)
-                    all_data['phi_psi_angles'].append(torch.tensor([phi, psi], dtype=torch.float))
-                    all_data['chain_indices'].append(torch.tensor(idx, dtype=torch.long))
-                    all_data['fixed_rotamers'].append(torch.tensor((bool(np.isclose(bfac_max, 1.0))), dtype=torch.bool))
+                        all_data['sequence_indices'].append(residue_sequence_index)
+                        all_data['heavy_atom_coords'].append(residue_coords)
+                        all_data['residue_identifiers'].append(residue_identifier)
+                        all_data['phi_psi_angles'].append(phi_psi)
+                        all_data['chain_indices'].append(torch.tensor(idx, dtype=torch.long))
+                        all_data['fixed_rotamers'].append(torch.tensor((bool(np.isclose(max(bfac), 1.0))), dtype=torch.bool))
+                    else:
+                        # Handles case where we want to parse a non-canonical amino acid as a ligand. 
+                        # Need to apply methyl caps to the backbone atoms for the ligand encoder.
+                        all_cap_coords, all_atom_types = rotamer_builder_cpu._compute_methyl_cap_coordinates(phi_psi, residue_coords, residue_sequence_index)
+                        self.ligand_info.add_ligand(create_ligand_info(residue, residue_identifier))
+
+                        cap_atoms_names = []
+                        cap_atoms_index = defaultdict(int)
+                        cap_elements_list = [atomic_number_to_atom[x] for x in all_atom_types.tolist()]
+                        for element in cap_elements_list:
+                            cap_atoms_names.append(f'{element}{cap_atoms_index[element]}')
+                            cap_atoms_index[element] += 1
+                        copied_identifier = deepcopy(residue_identifier)
+                        copied_identifier.resname = "CAP"
+
+                        # Drop the H0 atom from the cap since H should be brought in as part of the sidechain since we assume the structure is protonated.
+                        h0_mask = [x != 'H0' for x in cap_atoms_names]
+                        self.ligand_info.add_ligand(LigandInfo(all_cap_coords[h0_mask], np.array(cap_elements_list)[h0_mask], np.array(cap_atoms_names)[h0_mask], copied_identifier))
                 else:
                     self.ligand_info.add_ligand(create_ligand_info(residue, residue_identifier))
 
@@ -318,6 +352,35 @@ class ProteinComplexData:
 
         return BatchData(**batch_data_dict)
     
+
+def get_all_gly_protein(prody_hv: pr.HierView):
+    """
+    Create an all glycine version of the protein where noncanonicals 
+    are handled as part of the protein even if they were marked as hetatms.
+    """
+
+    identifier_predix_to_residue = {}
+    prody_ag = prody_hv.getAtoms().select('name N or name C or name CA or name O').copy()
+    all_residues = [res for chain in prody_ag.getHierView() for res in chain if len(res) == 4]
+    ag = None
+    for new_res in all_residues:
+        new_res = new_res.copy()
+
+        new_res.setResnames('GLY')
+        new_res.setFlags('hetatm', False)
+        # new_res.setFlags('protein', True)
+        # new_res.setFlags('aminoacid', True)
+
+        if ag is None:
+            ag = new_res
+        else:
+            ag += new_res
+    
+    ag._flags['protein'] = np.ones_like(ag._flags['protein'])
+    ag._flags['aminoacid'] = np.ones_like(ag._flags['aminoacid'])
+    
+    return ag
+
 
 def compute_phi_psi_angles(residue: pr.AtomGroup) -> Tuple[float, float]:
     """
@@ -600,7 +663,7 @@ def output_protein_structure(full_atom_coords: torch.Tensor, amino_acid_indices:
     return protein
 
 
-def run_inference(input_pdb_path: str, path_to_weights: str, sequence_temp: Optional[float], bb_noise: float, inference_device: str, fix_beta: bool, output_path: str, strict_load: bool, use_edo: bool, fs_sequence_temp: Optional[float], repack_only: bool, ignore_ligand: bool):
+def run_inference(input_pdb_path: str, path_to_weights: str, sequence_temp: Optional[float], bb_noise: float, inference_device: str, fix_beta: bool, output_path: str, strict_load: bool, use_edo: bool, fs_sequence_temp: Optional[float], repack_only: bool, ignore_ligand: bool, noncanonical_aa_ligand: bool):
     print("Loading", input_pdb_path, "and running inference with", path_to_weights, "on", inference_device)
     if bb_noise > 0:
         print(f"Noising backbone with {bb_noise}A Gaussian noise.")
@@ -612,11 +675,15 @@ def run_inference(input_pdb_path: str, path_to_weights: str, sequence_temp: Opti
         unique_betas = np.unique(np.concatenate([x.getBetas() for x in protein_hv.iterChains()])) # type: ignore
         assert len(unique_betas) <= 2 and np.isin(unique_betas, np.array([0.0, 1.0])).all(), f"Only B-Factors 0.0 and 1.0 are allowed when fixing residues with -b flag, please adjust your input. Found b-factors: {unique_betas}"
     
-    data = ProteinComplexData(protein_hv, input_pdb_path)
+    data = ProteinComplexData(protein_hv, input_pdb_path, treat_noncanonical_as_ligand=noncanonical_aa_ligand)
     batch_data = data.output_batch_data(fix_beta)
 
     if ignore_ligand:
-        raise NotImplementedError
+        batch_data.unprocessed_ligand_input_data.lig_coords = torch.empty(0, 3)
+        batch_data.unprocessed_ligand_input_data.lig_batch_indices = torch.empty(0, dtype=torch.long)
+        batch_data.unprocessed_ligand_input_data.lig_subbatch_indices = torch.empty(0, dtype=torch.long)
+        batch_data.unprocessed_ligand_input_data.lig_burial_maskmask = torch.empty(0, dtype=torch.bool)
+        batch_data.unprocessed_ligand_input_data.lig_atomic_numbers = torch.empty(0, dtype=torch.long)
 
     # Report the parsing results.
     if repack_only:
@@ -670,6 +737,7 @@ def parse_args():
     parser.add_argument('--ebd', '-e', dest='entropy_decoder', action='store_true', help='Uses entropy based decoding order. Decodes all residues and selects the lowest entropy residue as next to decode, then recomputes all remaining residues. Takes longer than normal decoding.')
     parser.add_argument('--repack_only', action='store_true', help='Only repack residues, do not design new ones.')
     parser.add_argument('--ignore_ligand', action='store_true', help='Ignore ligands in the input PDB file.')
+    parser.add_argument('--noncanonical_aa_ligand', action='store_true', help='Featurize a noncanonical amino acid as a ligand.')
 
     out = parser.parse_args()
 
@@ -684,6 +752,6 @@ if __name__ == "__main__":
         parsed_args.input_pdb_code, parsed_args.model_weights, sequence_temp, backbone_noise, 
         parsed_args.device, parsed_args.fix_beta, parsed_args.output_path, parsed_args.strict_load, 
         parsed_args.entropy_decoder, parsed_args.fs_sequence_temp,
-        repack_only=parsed_args.repack_only, ignore_ligand=parsed_args.ignore_ligand
+        repack_only=parsed_args.repack_only, ignore_ligand=parsed_args.ignore_ligand, noncanonical_aa_ligand=parsed_args.noncanonical_aa_ligand
     )
 
