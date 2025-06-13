@@ -3,9 +3,10 @@ import argparse
 import numpy as np
 import prody as pr
 from pathlib import Path
-from utils.model import SpiceDatasetPretrainingModule
-from utils.spice_dataset import SpiceBatchData
-from utils.constants import atom_to_atomic_number, POSSIBLE_FORMAL_CHARGE_LIST
+
+from LASErMPNN.utils.model import SpiceDatasetPretrainingModule
+from LASErMPNN.utils.spice_dataset import SpiceBatchData
+from LASErMPNN.utils.constants import atom_to_atomic_number, POSSIBLE_FORMAL_CHARGE_LIST
 
 CURR_FILE_DIR_PATH = Path(__file__).parent
 

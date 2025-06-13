@@ -15,10 +15,9 @@ import numpy as np
 import prody as pr
 from tqdm import tqdm
 
-from utils.model import Sampled_Output
-from utils.pdb_dataset import BatchData
-from run_inference import get_protein_hierview, load_model_from_parameter_dict, sample_model, output_protein_structure, output_ligand_structure, ProteinComplexData
-
+from LASErMPNN.utils.model import Sampled_Output
+from LASErMPNN.utils.pdb_dataset import BatchData
+from LASErMPNN.run_inference import get_protein_hierview, load_model_from_parameter_dict, sample_model, output_protein_structure, output_ligand_structure, ProteinComplexData
 
 CURR_FILE_DIR_PATH = Path(__file__).parent
 
@@ -31,16 +30,17 @@ def _run_inference(
     fix_beta: bool = False, repack_only_input_sequence: bool = False, 
     first_shell_sequence_temp: Optional[float] = None, ignore_ligand: bool = False, 
     budget_residue_sele_string: str='', ala_budget: Optional[int]=None, gly_budget: Optional[int]=None,
+    noncanonical_aa_ligand: bool = False,
 ) -> Tuple[Sampled_Output, torch.Tensor, torch.Tensor, torch.Tensor, BatchData, ProteinComplexData]:
     model.eval()
 
     # Load the model and run inference.
     if isinstance(input_file_path, str): 
         protein_hv = get_protein_hierview(input_file_path)
-        data = ProteinComplexData(protein_hv, input_file_path, use_input_water=use_water, verbose=not disable_pbar)
+        data = ProteinComplexData(protein_hv, input_file_path, use_input_water=use_water, verbose=not disable_pbar, treat_noncanonical_as_ligand=noncanonical_aa_ligand)
     else:
         protein_hv = input_file_path
-        data = ProteinComplexData(protein_hv, 'input', use_input_water=use_water, verbose=not disable_pbar)
+        data = ProteinComplexData(protein_hv, 'input', use_input_water=use_water, verbose=not disable_pbar, treat_noncanonical_as_ligand=noncanonical_aa_ligand)
 
     budget_residue_mask = None
     if budget_residue_sele_string != '' and budget_residue_sele_string is not None:
@@ -87,7 +87,7 @@ def run_inference(
         inference_device, designs_per_input, designs_per_batch, use_water, ignore_key_mismatch, 
         verbose=True, seq_min_p=0.0, chi_min_p=0.0, output_idx_offset=0, disabled_residues='', 
         fix_beta=False, repack_only_input_sequence=False, 
-        first_shell_sequence_temp=None, ignore_ligand=False,
+        first_shell_sequence_temp=None, ignore_ligand=False, noncanonical_aa_ligand=False
         budget_residue_sele_string: str='', ala_budget: Optional[int]=None, gly_budget: Optional[int]=None
 ):
     sequence_temp = float(sequence_temp) if sequence_temp else None
@@ -139,6 +139,7 @@ def run_inference(
                 first_shell_sequence_temp=first_shell_sequence_temp, ignore_ligand=ignore_ligand,
                 budget_residue_sele_string=budget_residue_sele_string, 
                 ala_budget=ala_budget, gly_budget=gly_budget,
+                noncanonical_aa_ligand=noncanonical_aa_ligand
             )
             
             for idx in range(curr_num_to_design):
@@ -180,10 +181,10 @@ def parse_args(default_weights_path: str):
     parser.add_argument('--fix_beta', action='store_true', help='If B-factors are set to 1, fixes the residue and rotamer, if not, designs that position.')
     parser.add_argument('--repack_only_input_sequence', action='store_true', help='Repacks the input sequence without changing the sequence.')
     parser.add_argument('--ignore_ligand', action='store_true', help='Ignore ligand in sampling.')
-
     parser.add_argument('--budget_residue_sele_string', default=None, help='')
     parser.add_argument('--ala_budget', type=int, default=4, help='')
     parser.add_argument('--gly_budget', type=int, default=0, help='')
+    parser.add_argument('--noncanonical_aa_ligand', action='store_true', help='Featurize a noncanonical amino acid as a ligand.')
 
     parsed_args = parser.parse_args()
 

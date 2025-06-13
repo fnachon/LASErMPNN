@@ -2,7 +2,9 @@
 
 ### Check out the paper [here](https://www.biorxiv.org/content/10.1101/2025.04.22.649862v1)!
 
+
 ![A block diagram of the LASErMPNN architecture depicting information flow through the network.](./images/laser_block_diagram.png)
+
 
 > [!WARNING]
 > A major difference between LASErMPNN and LigandMPNN is that LASErMPNN was trained on protonated structures. 
@@ -35,6 +37,10 @@ If not, run `conda config --set-solver libmamba`.
 
 
 ### Running Inference
+
+```bash
+python -m LASErMPNN.run_inference -h
+```
 
 This script outputs a single pdb file named `laser_output.pdb` and is useful for testing:
 
@@ -73,6 +79,10 @@ optional arguments:
 
 
 ### Running Batch Inference
+
+```bash
+python -m LASErMPNN.run_batch_inference -h
+```
 
 This script is useful to generate multiple designs for one or multiple inputs. Creates an output directory with subdirectories for each input file (unless run with a single input file).
 

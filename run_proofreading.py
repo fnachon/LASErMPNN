@@ -11,10 +11,10 @@ from dataclasses import asdict
 import warnings
 warnings.filterwarnings("ignore")
 
-from utils.model import LASErMPNN
-from utils.constants import aa_idx_to_short, aa_long_to_idx
-from utils.pdb_dataset import UnclusteredProteinChainDataset, collate_sampler_data, ClusteredDatasetSampler, BatchData
-from run_inference import load_model_from_parameter_dict, get_protein_hierview, sample_model, ProteinComplexData, run_inference
+from LASErMPNN.utils.model import LASErMPNN
+from LASErMPNN.utils.constants import aa_idx_to_short, aa_long_to_idx
+from LASErMPNN.utils.pdb_dataset import UnclusteredProteinChainDataset, collate_sampler_data, ClusteredDatasetSampler, BatchData
+from LASErMPNN.run_inference import load_model_from_parameter_dict, get_protein_hierview, sample_model, ProteinComplexData, run_inference
 
 CURR_FILE_DIR_PATH = Path(__file__).parent
 
