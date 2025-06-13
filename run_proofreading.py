@@ -30,11 +30,11 @@ def load_model(weights, device, use_inference_dropout):
     return model, training_parameter_dict
 
 
-def get_forward_pass_probabilities(model, training_parameter_dict, input_protein_path, unconditional=False):
+def get_forward_pass_probabilities(model, training_parameter_dict, input_protein_path, unconditional=False, ignore_ligand=False):
     with torch.no_grad():
         batch_data: BatchData
 
-        protein_hv = get_protein_hierview(input_protein_path)
+        protein_hv = get_protein_hierview(input_protein_path, ignore_ligand=ignore_ligand)
         data = ProteinComplexData(protein_hv, input_protein_path)
         batch_data = data.output_batch_data(fix_beta=False)
         rescodes = np.array([f'{x["resname"]}-{x["resnum"]}' for x in asdict(data)['residue_identifiers']])
@@ -63,8 +63,8 @@ def get_forward_pass_probabilities(model, training_parameter_dict, input_protein
 
 
 @torch.no_grad()
-def compute_unconditional_probs(model, param_dict, pdb_file: Path, output_dir: Path, selection_string: str):
-    sequence_logits, fs_mask, seq_indices, rescodes = get_forward_pass_probabilities(model, param_dict, str(pdb_file), unconditional=True)
+def compute_unconditional_probs(model, param_dict, pdb_file: Path, output_dir: Path, selection_string: str, return_probs: bool = False, ignore_ligand: bool = False):
+    sequence_logits, fs_mask, seq_indices, rescodes = get_forward_pass_probabilities(model, param_dict, str(pdb_file), unconditional=True, ignore_ligand=ignore_ligand)
 
     if len(selection_string) > 0 :
         A = pr.parsePDB(str(pdb_file))
@@ -97,6 +97,9 @@ def compute_unconditional_probs(model, param_dict, pdb_file: Path, output_dir: P
     plt.tight_layout()
     output_path = output_dir / f'unconditional_probs.png'
     plt.savefig(output_path)
+
+    if return_probs:
+        return fs_probs
 
     return fs_mask, ylabels, output_path
 

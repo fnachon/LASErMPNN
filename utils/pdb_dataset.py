@@ -1696,7 +1696,10 @@ class LigandMPNNDatasetSampler(Sampler):
     Iteration returns batched indices for use in UnclusteredProteinChainDataset.
     Pass to a DataLoader as a batch_sampler.
     """
-    def __init__(self, dataset: UnclusteredProteinChainDataset, params: dict, is_train: bool, seed: Optional[int] = None, max_protein_length: int = 10_000, subset_pdb_code_list: Optional[list] = None):
+    def __init__(
+        self, dataset: UnclusteredProteinChainDataset, params: dict, is_train: bool, seed: Optional[int] = None, 
+        max_protein_length: int = 10_000, subset_pdb_code_list: Optional[list] = None, soluble_proteins_only: bool = False
+    ):
         # Set the random seed for reproducibility and consistent randomness between processes if parallelized.
         if seed is None:
             self.generator = torch.Generator(device='cpu')
@@ -1709,12 +1712,18 @@ class LigandMPNNDatasetSampler(Sampler):
         self.shuffle = params['sample_randomly']
         self.max_protein_length = max_protein_length
         self.subset_pdbs = subset_pdb_code_list
+        self.soluble_proteins_only = soluble_proteins_only
 
         # Load the cluster data.
         sequence_clusters = pd.read_pickle(params['clustering_dataframe_path'])
         # if params['debug']:
         #     sequence_clusters = sequence_clusters[sequence_clusters.chain.str.find('w7') == 1]
         self.subclusters_info = pd.read_pickle(params['subcluster_pickle_path'])
+
+        self.possible_membrane_pdb_codes = set(pd.read_csv(str(Path(__file__).parent.parent / 'files/membrane_excluded_PDBs.csv'), index_col=0).PDB_IDS)
+        if self.soluble_proteins_only:
+            self.representative_biological_assemblies = torch.load('/nfs/polizzi/bfry/main_projects/identify_cause_of_alanine_repeats/identify_minimum_hydrophobic_sa_bioas/representative_bioa_set.pt', weights_only=False)
+            self.pdb_chain_set_below_threshold = torch.load('/nfs/polizzi/bfry/main_projects/identify_cause_of_alanine_repeats/identify_minimum_hydrophobic_sa_bioas/pdb_chain_set_below_threshold.pt', weights_only=False)
         
         self.is_train = is_train
         self.train_codes = ligandmpnn_training_pdb_codes
@@ -1750,7 +1759,6 @@ class LigandMPNNDatasetSampler(Sampler):
             Returns:
             - dict: A dictionary containing the filtered clusters.
         """
-
         test_metal = ["1dwh", "1e4m", "1e6s", "1e72", "1f35", "1fee", "1job", "1lqk", "1m5e", "1m5f", "1moj", "1mxy", "1mxz", "1my1", "1nki", "1qum", "1sgf", "1t31", "1u3e", "2bdh", "2bx2", "2cfv", "2e6c", "2nq9", "2nqj", "2nz6", "2ou7", "2vxx", "2zwn", "3bvx", "3cv5", "3f4v", "3f5l", "3fgg", "3hg9", "3hkn", "3hkt", "3i9z", "3k7r", "3l24", "3l7t", "3m7p", "3mi9", "3o1u", "3u92", "3u93", "3u94", "3won", "4aoj", "4dy1", "4hzt", "4i0f", "4i0j", "4i0z", "4i11", "4i12", "4jd1", "4naz", "4wd8", "4x68", "5f55", "5f56", "5fgs", "5hez", "5i4j", "5l70", "5vde", "6a4x", "6buu", "6cyt", "6iv2", "6lkp", "6lrd", "6wdz", "6x75", "7dnr", "7e34", "7kii", "7n7g", "7s7l", "7s7m", "7w5e", "7wb2"]
         test_nucleic = ["1a0a", "1am9", "1an4", "1b01", "1bc7", "1bc8", "1di2", "1ec6", "1hlo", "1hlv", "1i3j", "1pvi", "1qum", "1sfu", "1u3e", "1xpx", "1yo5", "1zx4", "2c5r", "2c62", "2nq9", "2o4a", "2p5l", "2xdb", "2ypb", "2zhg", "2zio", "3adl", "3bsu", "3fc3", "3g73", "3gna", "3gx4", "3lsr", "3mj0", "3mva", "3n7q", "3olt", "3vok", "3vwb", "3zp5", "4ato", "4bhm", "4bqa", "4e0p", "4nid", "4wal", "5cm3", "5haw", "5mht", "5vc9", "5w9s", "5ybd", "6bjv", "6dnw", "6fqr", "6gdr", "6kbs", "6lff", "6lmj", "6od4", "6wdz", "6x70", "6y93", "7bca", "7c0g", "7el3", "7jsa", "7ju3", "7kii", "7kij", "7mtl", "7z0u", "8dwm"]
 
@@ -1775,6 +1783,18 @@ class LigandMPNNDatasetSampler(Sampler):
                     if self.subset_pdbs is not None and chain.split('_')[0] not in self.subset_pdbs:
                         continue
 
+                    # Not known membrane.
+                    if self.soluble_proteins_only and (chain.split('_')[0] in self.possible_membrane_pdb_codes):
+                        continue
+                    
+                    # Not correct bioa.
+                    if self.soluble_proteins_only and not (chain.split('-')[0] in self.representative_biological_assemblies):
+                        continue
+
+                    # Not soluble enough
+                    if self.soluble_proteins_only and not ((chain.split('-')[0], chain.split('-')[-1]) in self.pdb_chain_set_below_threshold):
+                        continue
+
                     chain_len = self.dataset.index_to_complex_size[self.dataset.chain_key_to_index[chain]]
                     if chain_len <= self.max_protein_length:
                         output[cluster_rep].append(chain)
@@ -1788,10 +1808,22 @@ class LigandMPNNDatasetSampler(Sampler):
                     if self.subset_pdbs is not None and chain.split('_')[0] not in self.subset_pdbs:
                         continue
 
+                    # Not known membrane.
+                    if self.soluble_proteins_only and chain.split('_')[0] in self.possible_membrane_pdb_codes:
+                        continue
+
+                    # Not correct bioa.
+                    if self.soluble_proteins_only and not (chain.split('-')[0] in self.representative_biological_assemblies):
+                        continue
+
+                    # Not soluble enough
+                    if self.soluble_proteins_only and not ((chain.split('-')[0], chain.split('-')[-1]) in self.pdb_chain_set_below_threshold):
+                        continue
+
                     chain_len = self.dataset.index_to_complex_size[self.dataset.chain_key_to_index[chain]]
                     if chain_len <= self.max_protein_length:
                         output[cluster_rep].append(chain)
-        
+
         output2 = defaultdict(lambda: defaultdict(list))
         for cluster, subcluster_dict in self.subclusters_info.items():
             if cluster in output:
