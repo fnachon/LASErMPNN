@@ -87,7 +87,7 @@ def run_inference(
         inference_device, designs_per_input, designs_per_batch, use_water, ignore_key_mismatch, 
         verbose=True, seq_min_p=0.0, chi_min_p=0.0, output_idx_offset=0, disabled_residues='', 
         fix_beta=False, repack_only_input_sequence=False, 
-        first_shell_sequence_temp=None, ignore_ligand=False, noncanonical_aa_ligand=False
+        first_shell_sequence_temp=None, ignore_ligand=False, noncanonical_aa_ligand=False,
         budget_residue_sele_string: str='', ala_budget: Optional[int]=None, gly_budget: Optional[int]=None
 ):
     sequence_temp = float(sequence_temp) if sequence_temp else None
