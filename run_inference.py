@@ -212,8 +212,11 @@ class ProteinComplexData:
                         copied_identifier = deepcopy(residue_identifier)
                         copied_identifier.resname = "CAP"
 
-                        # Drop the H0 atom from the cap since H should be brought in as part of the sidechain since we assume the structure is protonated.
+                        # Drop the H0 atom from the cap in the case that H atom is missing.
                         h0_mask = [x != 'H0' for x in cap_atoms_names]
+                        if 'H' not in residue.getNames():
+                            h0_mask = torch.ones_like(h0_mask)
+
                         self.ligand_info.add_ligand(LigandInfo(all_cap_coords[h0_mask], np.array(cap_elements_list)[h0_mask], np.array(cap_atoms_names)[h0_mask], copied_identifier))
                 else:
                     self.ligand_info.add_ligand(create_ligand_info(residue, residue_identifier))
