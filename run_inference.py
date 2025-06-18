@@ -215,7 +215,7 @@ class ProteinComplexData:
                         # Drop the H0 atom from the cap in the case that H atom is missing.
                         h0_mask = [x != 'H0' for x in cap_atoms_names]
                         if 'H' not in residue.getNames():
-                            h0_mask = torch.ones_like(h0_mask)
+                            h0_mask = np.ones_like(h0_mask)
 
                         self.ligand_info.add_ligand(LigandInfo(all_cap_coords[h0_mask], np.array(cap_elements_list)[h0_mask], np.array(cap_atoms_names)[h0_mask], copied_identifier))
                 else:
@@ -705,7 +705,7 @@ def run_inference(input_pdb_path: str, path_to_weights: str, sequence_temp: Opti
 
     # Load the model and run inference
     model, params = load_model_from_parameter_dict(path_to_weights, inference_device, strict=strict_load)
-    sampled_output = sample_model(model, batch_data, sequence_temp, bb_noise, params, use_edo, fs_sequence_temp=fs_sequence_temp, repack_all=repack_only, budget_residue_mask=budget_residue_mask) 
+    sampled_output = sample_model(model, batch_data, sequence_temp, bb_noise, params, use_edo, fs_sequence_temp=fs_sequence_temp, repack_all=repack_only, budget_residue_mask=None) 
 
     sampled_probs = sampled_output.sequence_logits.softmax(dim=-1).gather(1, sampled_output.sampled_sequence_indices.unsqueeze(-1)).squeeze(-1)
 
