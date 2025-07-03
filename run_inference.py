@@ -151,6 +151,14 @@ class ProteinComplexData:
     def __post_init__(self):
         all_data = defaultdict(list)
 
+        # Sanity check that segid, chid, resnum, icode, resname is unique 
+        atom_group = self.prody_protein.getAtoms()
+        if not (
+            len(set([(x.getSegname(), x.getChid(), x.getResnum(), x.getIcode()) for x in atom_group])) == 
+            len(set([(x.getSegname(), x.getChid(), x.getResnum(), x.getResname(), x.getIcode()) for x in atom_group]))
+        ):
+            raise ValueError('Found two residues with the same Segment ID, Chain ID, Resnum, and Insertion Code but different resnames... Each residue should have a unique (SEGID, CHID, RESNUM, ICODE). Check your input file.')
+
         # Create an all glycine version of the backbone to make sure we can correctly compute the phi/psi angles.
         # NCAAs mess this up.
         all_gly_resids = {}
@@ -193,6 +201,7 @@ class ProteinComplexData:
 
                         all_data['sequence_indices'].append(residue_sequence_index)
                         all_data['heavy_atom_coords'].append(residue_coords)
+
                         all_data['residue_identifiers'].append(residue_identifier)
                         all_data['phi_psi_angles'].append(phi_psi)
                         all_data['chain_indices'].append(torch.tensor(idx, dtype=torch.long))
@@ -361,8 +370,6 @@ def get_all_gly_protein(prody_hv: pr.HierView):
     Create an all glycine version of the protein where noncanonicals 
     are handled as part of the protein even if they were marked as hetatms.
     """
-
-    identifier_predix_to_residue = {}
     prody_ag = prody_hv.getAtoms().select('name N or name C or name CA or name O').copy()
     all_residues = [res for chain in prody_ag.getHierView() for res in chain if len(res) == 4]
     ag = None
