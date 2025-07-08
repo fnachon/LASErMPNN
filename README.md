@@ -46,7 +46,9 @@ This script outputs a single pdb file named `laser_output.pdb` and is useful for
 
 
 ```text
-usage: run_inference.py [-h] [--model_weights MODEL_WEIGHTS] [--output_path OUTPUT_PATH] [--temp SEQUENCE_TEMP] [--fs_sequence_temp FS_SEQUENCE_TEMP] [--bb_noise BACKBONE_NOISE] [--device DEVICE] [--fix_beta] [--ignore_statedict_mismatch] [--ebd] [--repack_only] [--ignore_ligand] [--noncanonical_aa_ligand] input_pdb_code
+usage: run_inference.py [-h] [--model_weights MODEL_WEIGHTS] [--output_path OUTPUT_PATH] [--temp SEQUENCE_TEMP] [--fs_sequence_temp FS_SEQUENCE_TEMP] [--bb_noise BACKBONE_NOISE] [--device DEVICE] [--fix_beta] [--ignore_statedict_mismatch] [--ebd] [--repack_only] [--ignore_ligand] [--noncanonical_aa_ligand]
+                        [--fs_calc_ca_distance FS_CALC_CA_DISTANCE] [--fs_calc_burial_hull_alpha_value FS_CALC_BURIAL_HULL_ALPHA_VALUE] [--fs_no_calc_burial] [--disable_charged_fs]
+                        input_pdb_code
 
 Run LASErMPNN inference on a given PDB file.
 
@@ -75,6 +77,12 @@ options:
   --ignore_ligand       Ignore ligands in the input PDB file.
   --noncanonical_aa_ligand
                         Featurize a noncanonical amino acid as a ligand.
+  --fs_calc_ca_distance FS_CALC_CA_DISTANCE
+                        Distance between a ligand heavy atom and CA carbon to consider that carbon first shell.
+  --fs_calc_burial_hull_alpha_value FS_CALC_BURIAL_HULL_ALPHA_VALUE
+                        Alpha parameter for defining convex hull. May want to try setting to larger values if using folds with larger cavities (ex: ~100.0).
+  --fs_no_calc_burial   Disable using a burial calculation when selecting first shell residues, if true uses only distance from --fs_calc_ca_distance
+  --disable_charged_fs  Disable sampling D,K,R,E residues in the first shell around the ligand.
 ```
 
 
@@ -88,7 +96,8 @@ This script is useful to generate multiple designs for one or multiple inputs. C
 
 ```text
 usage: run_batch_inference.py [-h] [--designs_per_batch DESIGNS_PER_BATCH] [--model_weights_path MODEL_WEIGHTS_PATH] [--sequence_temp SEQUENCE_TEMP] [--first_shell_sequence_temp FIRST_SHELL_SEQUENCE_TEMP] [--chi_temp CHI_TEMP] [--chi_min_p CHI_MIN_P] [--seq_min_p SEQ_MIN_P] [--device INFERENCE_DEVICE] [--use_water] [--silent]
-                              [--ignore_key_mismatch] [--disabled_residues DISABLED_RESIDUES] [--fix_beta] [--repack_only_input_sequence] [--ignore_ligand] [--budget_residue_sele_string BUDGET_RESIDUE_SELE_STRING] [--ala_budget ALA_BUDGET] [--gly_budget GLY_BUDGET] [--noncanonical_aa_ligand]
+                              [--ignore_key_mismatch] [--disabled_residues DISABLED_RESIDUES] [--fix_beta] [--repack_only_input_sequence] [--ignore_ligand] [--budget_residue_sele_string BUDGET_RESIDUE_SELE_STRING] [--ala_budget ALA_BUDGET] [--gly_budget GLY_BUDGET] [--noncanonical_aa_ligand] [--fs_calc_ca_distance FS_CALC_CA_DISTANCE]
+                              [--fs_calc_burial_hull_alpha_value FS_CALC_BURIAL_HULL_ALPHA_VALUE] [--fs_no_calc_burial] [--disable_charged_fs]
                               input_pdb_directory output_pdb_directory designs_per_input
 
 Run batch LASErMPNN inference.
@@ -130,6 +139,12 @@ options:
   --gly_budget GLY_BUDGET
   --noncanonical_aa_ligand
                         Featurize a noncanonical amino acid as a ligand.
+  --fs_calc_ca_distance FS_CALC_CA_DISTANCE
+                        Distance between a ligand heavy atom and CA carbon to consider that carbon first shell.
+  --fs_calc_burial_hull_alpha_value FS_CALC_BURIAL_HULL_ALPHA_VALUE
+                        Alpha parameter for defining convex hull. May want to try setting to larger values if using folds with larger cavities (ex: ~100.0).
+  --fs_no_calc_burial   Disable using a burial calculation when selecting first shell residues, if true uses only distance from --fs_calc_ca_distance
+  --disable_charged_fs  Disable sampling D,K,R,E residues in the first shell around the ligand.
 ```
 
 
