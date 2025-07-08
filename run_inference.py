@@ -24,6 +24,7 @@ from LASErMPNN.utils.model import LASErMPNN, Sampled_Output
 from LASErMPNN.utils.pdb_dataset import BatchData, UnprocessedLigandData, idealize_backbone_coords
 from LASErMPNN.utils.build_rotamers import RotamerBuilder
 from LASErMPNN.utils.constants import MAX_NUM_RESIDUE_ATOMS, aa_short_to_idx, aa_idx_to_short, aa_idx_to_long, aa_to_chi_angle_atom_index, dataset_atom_order, aa_long_to_short, atom_to_atomic_number, hydrogen_extended_dataset_atom_order, atomic_number_to_atom
+from LASErMPNN.utils.burial_calc import compute_fast_ligand_burial_mask
 
 CURR_FILE_DIR_PATH = Path(__file__).parent
 rotamer_builder_cpu = RotamerBuilder(5.0)
@@ -147,6 +148,10 @@ class ProteinComplexData:
 
     # Ligand metadata.
     ligand_info: LigandInfo = field(default_factory=LigandInfo)
+
+    first_shell_ca_distance: float = 10.0
+    first_shell_buried_only: bool = True
+    first_shell_burial_calc_hull_alpha: float = 9.0
 
     def __post_init__(self):
         all_data = defaultdict(list)
@@ -312,6 +317,14 @@ class ProteinComplexData:
         zeros_long = torch.zeros(self.sequence_indices.shape[0], dtype=torch.long)
         zeros_float = torch.zeros(self.sequence_indices.shape[0], dtype=torch.float)
         zeros_bool = torch.zeros(self.sequence_indices.shape[0], dtype=torch.bool)
+        
+        ligand_heavy_atom_coords = ligand_info.lig_coords[ligand_info.lig_atomic_numbers != 1]
+        first_shell_mask = (torch.cdist(bb_coords[:, 1], ligand_heavy_atom_coords) < self.first_shell_ca_distance).any(dim=-1)
+        if self.first_shell_buried_only:
+            # Identifies backbone frames with (virtual) CB atoms within a convex hull defined by the other CB atoms.
+            cb_coords = bb_coords[:, 1].numpy()
+            burial_mask = compute_fast_ligand_burial_mask(cb_coords, cb_coords, alpha=self.first_shell_burial_calc_hull_alpha, num_rays=5)
+            first_shell_mask = first_shell_mask & burial_mask
 
         if fix_beta:
             chain_mask = self.fixed_rotamers
@@ -337,7 +350,7 @@ class ProteinComplexData:
                 'msa_data': msa_data,
                 'msa_depth_weight': zeros_float,
                 'unprocessed_ligand_input_data': ligand_info,
-                'first_shell_ligand_contact_mask': zeros_bool,
+                'first_shell_ligand_contact_mask': first_shell_mask,
                 'sc_mediated_hbond_counts': zeros_long,
             }
         else:
@@ -358,7 +371,7 @@ class ProteinComplexData:
                 'msa_data': torch.cat([msa_data for _ in range(num_copies)], dim=0),
                 'msa_depth_weight': torch.cat([zeros_float for _ in range(num_copies)], dim=0),
                 'unprocessed_ligand_input_data': ligand_info,
-                'first_shell_ligand_contact_mask': torch.cat([zeros_bool for _ in range(num_copies)], dim=0),
+                'first_shell_ligand_contact_mask': torch.cat([first_shell_mask for _ in range(num_copies)], dim=0),
                 'sc_mediated_hbond_counts': torch.cat([zeros_long for _ in range(num_copies)], dim=0),
             }
 
@@ -526,7 +539,6 @@ def sample_model(
         if fs_sequence_temp is not None:
             sequence_temp = 1e-6 if sequence_temp is None else sequence_temp
             sample_temperature_vector = torch.full((batch_data.num_residues,), sequence_temp, dtype=torch.float, device=model.device)
-            # TODO: Use a distance cutoff definition of fs_sequence_temp instead of first shell ligand contact mask.
             sample_temperature_vector[batch_data.first_shell_ligand_contact_mask] = fs_sequence_temp
 
         sampling_output = model.sample(
