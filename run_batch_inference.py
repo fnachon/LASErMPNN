@@ -30,17 +30,28 @@ def _run_inference(
     fix_beta: bool = False, repack_only_input_sequence: bool = False, 
     first_shell_sequence_temp: Optional[float] = None, ignore_ligand: bool = False, 
     budget_residue_sele_string: str='', ala_budget: Optional[int]=None, gly_budget: Optional[int]=None,
-    noncanonical_aa_ligand: bool = False,
+    noncanonical_aa_ligand: bool = False, fs_calc_ca_distance: float = 10.0, 
+    fs_calc_burial_hull_alpha_value: float = 9.0, fs_no_calc_burial: bool = False
 ) -> Tuple[Sampled_Output, torch.Tensor, torch.Tensor, torch.Tensor, BatchData, ProteinComplexData]:
     model.eval()
 
     # Load the model and run inference.
     if isinstance(input_file_path, str): 
         protein_hv = get_protein_hierview(input_file_path)
-        data = ProteinComplexData(protein_hv, input_file_path, use_input_water=use_water, verbose=not disable_pbar, treat_noncanonical_as_ligand=noncanonical_aa_ligand)
+        data = ProteinComplexData(
+            protein_hv, input_file_path, use_input_water=use_water, verbose=not disable_pbar, treat_noncanonical_as_ligand=noncanonical_aa_ligand,
+            first_shell_ca_distance=fs_calc_ca_distance, 
+            first_shell_buried_only=(not fs_no_calc_burial),
+            first_shell_burial_calc_hull_alpha=fs_calc_burial_hull_alpha_value
+        )
     else:
         protein_hv = input_file_path
-        data = ProteinComplexData(protein_hv, 'input', use_input_water=use_water, verbose=not disable_pbar, treat_noncanonical_as_ligand=noncanonical_aa_ligand)
+        data = ProteinComplexData(
+            protein_hv, 'input', use_input_water=use_water, verbose=not disable_pbar, treat_noncanonical_as_ligand=noncanonical_aa_ligand,
+            first_shell_ca_distance=fs_calc_ca_distance, 
+            first_shell_buried_only=(not fs_no_calc_burial),
+            first_shell_burial_calc_hull_alpha=fs_calc_burial_hull_alpha_value
+        )
 
     budget_residue_mask = None
     if budget_residue_sele_string != '' and budget_residue_sele_string is not None:
@@ -88,7 +99,9 @@ def run_inference(
         verbose=True, seq_min_p=0.0, chi_min_p=0.0, output_idx_offset=0, disabled_residues='', 
         fix_beta=False, repack_only_input_sequence=False, 
         first_shell_sequence_temp=None, ignore_ligand=False, noncanonical_aa_ligand=False,
-        budget_residue_sele_string: str='', ala_budget: Optional[int]=None, gly_budget: Optional[int]=None
+        budget_residue_sele_string: str='', ala_budget: Optional[int]=None, gly_budget: Optional[int]=None,
+        fs_calc_ca_distance: float = 10.0, fs_calc_burial_hull_alpha_value: float = 9.0,
+        fs_no_calc_burial: bool = False
 ):
     sequence_temp = float(sequence_temp) if sequence_temp else None
     chi_temp = float(chi_temp) if chi_temp else None
@@ -139,7 +152,10 @@ def run_inference(
                 first_shell_sequence_temp=first_shell_sequence_temp, ignore_ligand=ignore_ligand,
                 budget_residue_sele_string=budget_residue_sele_string, 
                 ala_budget=ala_budget, gly_budget=gly_budget,
-                noncanonical_aa_ligand=noncanonical_aa_ligand
+                noncanonical_aa_ligand=noncanonical_aa_ligand,
+                fs_calc_ca_distance=fs_calc_ca_distance, 
+                fs_calc_burial_hull_alpha_value=fs_calc_burial_hull_alpha_value,
+                fs_no_calc_burial=fs_no_calc_burial
             )
             
             for idx in range(curr_num_to_design):
@@ -185,6 +201,10 @@ def parse_args(default_weights_path: str):
     parser.add_argument('--ala_budget', type=int, default=4, help='')
     parser.add_argument('--gly_budget', type=int, default=0, help='')
     parser.add_argument('--noncanonical_aa_ligand', action='store_true', help='Featurize a noncanonical amino acid as a ligand.')
+
+    parser.add_argument('--fs_calc_ca_distance', type=float, default=10.0, help='Distance between a ligand heavy atom and CA carbon to consider that carbon first shell.')
+    parser.add_argument('--fs_calc_burial_hull_alpha_value', type=float, default=9.0, help='Alpha parameter for defining convex hull. May want to try setting to larger values if using folds with larger cavities (ex: ~100.0).')
+    parser.add_argument('--fs_no_calc_burial', action='store_true', help='Disable using a burial calculation when selecting first shell residues, if true uses only distance from --fs_calc_ca_distance')
 
     parsed_args = parser.parse_args()
 

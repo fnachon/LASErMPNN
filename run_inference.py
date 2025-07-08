@@ -319,6 +319,7 @@ class ProteinComplexData:
         zeros_bool = torch.zeros(self.sequence_indices.shape[0], dtype=torch.bool)
         
         ligand_heavy_atom_coords = ligand_info.lig_coords[ligand_info.lig_atomic_numbers != 1]
+        # Define first shell as CA carbon within 10A of a ligand heavy atom.
         first_shell_mask = (torch.cdist(bb_coords[:, 1], ligand_heavy_atom_coords) < self.first_shell_ca_distance).any(dim=-1)
         if self.first_shell_buried_only:
             # Identifies backbone frames with (virtual) CB atoms within a convex hull defined by the other CB atoms.
@@ -691,7 +692,11 @@ def output_protein_structure(full_atom_coords: torch.Tensor, amino_acid_indices:
     return protein
 
 
-def run_inference(input_pdb_path: str, path_to_weights: str, sequence_temp: Optional[float], bb_noise: float, inference_device: str, fix_beta: bool, output_path: str, strict_load: bool, use_edo: bool, fs_sequence_temp: Optional[float], repack_only: bool, ignore_ligand: bool, noncanonical_aa_ligand: bool):
+def run_inference(
+    input_pdb_path: str, path_to_weights: str, sequence_temp: Optional[float], bb_noise: float, inference_device: str, fix_beta: bool, output_path: str, strict_load: bool, use_edo: bool, 
+    fs_sequence_temp: Optional[float], repack_only: bool, ignore_ligand: bool, noncanonical_aa_ligand: bool,
+    fs_calc_ca_distance: float = 10.0, fs_calc_no_calc_burial: bool = False, fs_calc_burial_hull_alpha_value: float = 9.0
+):
     print("Loading", input_pdb_path, "and running inference with", path_to_weights, "on", inference_device)
     if bb_noise > 0:
         print(f"Noising backbone with {bb_noise}A Gaussian noise.")
@@ -703,7 +708,12 @@ def run_inference(input_pdb_path: str, path_to_weights: str, sequence_temp: Opti
         unique_betas = np.unique(np.concatenate([x.getBetas() for x in protein_hv.iterChains()])) # type: ignore
         assert len(unique_betas) <= 2 and np.isin(unique_betas, np.array([0.0, 1.0])).all(), f"Only B-Factors 0.0 and 1.0 are allowed when fixing residues with -b flag, please adjust your input. Found b-factors: {unique_betas}"
     
-    data = ProteinComplexData(protein_hv, input_pdb_path, treat_noncanonical_as_ligand=noncanonical_aa_ligand)
+    data = ProteinComplexData(
+        protein_hv, input_pdb_path, treat_noncanonical_as_ligand=noncanonical_aa_ligand, 
+        first_shell_ca_distance=fs_calc_ca_distance, 
+        first_shell_buried_only=(not fs_calc_no_calc_burial),
+        first_shell_burial_calc_hull_alpha=fs_calc_burial_hull_alpha_value
+    )
     batch_data = data.output_batch_data(fix_beta)
 
     if ignore_ligand:
@@ -767,6 +777,10 @@ def parse_args():
     parser.add_argument('--ignore_ligand', action='store_true', help='Ignore ligands in the input PDB file.')
     parser.add_argument('--noncanonical_aa_ligand', action='store_true', help='Featurize a noncanonical amino acid as a ligand.')
 
+    parser.add_argument('--fs_calc_ca_distance', type=float, default=10.0, help='Distance between a ligand heavy atom and CA carbon to consider that carbon first shell.')
+    parser.add_argument('--fs_calc_burial_hull_alpha_value', type=float, default=9.0, help='Alpha parameter for defining convex hull. May want to try setting to larger values if using folds with larger cavities (ex: ~100.0).')
+    parser.add_argument('--fs_no_calc_burial', action='store_true', help='Disable using a burial calculation when selecting first shell residues, if true uses only distance from --fs_calc_ca_distance')
+
     out = parser.parse_args()
 
     seq_temp = float(out.sequence_temp) if out.sequence_temp else None
@@ -780,6 +794,10 @@ if __name__ == "__main__":
         parsed_args.input_pdb_code, parsed_args.model_weights, sequence_temp, backbone_noise, 
         parsed_args.device, parsed_args.fix_beta, parsed_args.output_path, parsed_args.strict_load, 
         parsed_args.entropy_decoder, parsed_args.fs_sequence_temp,
-        repack_only=parsed_args.repack_only, ignore_ligand=parsed_args.ignore_ligand, noncanonical_aa_ligand=parsed_args.noncanonical_aa_ligand
+        repack_only=parsed_args.repack_only, ignore_ligand=parsed_args.ignore_ligand, 
+        noncanonical_aa_ligand=parsed_args.noncanonical_aa_ligand,
+        fs_calc_ca_distance=parsed_args.fs_calc_ca_distance, 
+        fs_calc_no_calc_burial=parsed_args.fs_no_calc_burial, 
+        fs_calc_burial_hull_alpha_value=parsed_args.fs_calc_burial_hull_alpha_value
     )
 
