@@ -46,19 +46,17 @@ This script outputs a single pdb file named `laser_output.pdb` and is useful for
 
 
 ```text
-usage: run_inference.py [-h] [--model_weights MODEL_WEIGHTS] [--output_path OUTPUT_PATH] [--temp SEQUENCE_TEMP] [--fs_sequence_temp FS_SEQUENCE_TEMP] [--bb_noise BACKBONE_NOISE] [--device DEVICE] [--fix_beta] [--ignore_statedict_mismatch]
-                        [--ebd] [--repack_only] [--ignore_ligand]
-                        input_pdb_code
+usage: run_inference.py [-h] [--model_weights MODEL_WEIGHTS] [--output_path OUTPUT_PATH] [--temp SEQUENCE_TEMP] [--fs_sequence_temp FS_SEQUENCE_TEMP] [--bb_noise BACKBONE_NOISE] [--device DEVICE] [--fix_beta] [--ignore_statedict_mismatch] [--ebd] [--repack_only] [--ignore_ligand] [--noncanonical_aa_ligand] input_pdb_code
 
 Run LASErMPNN inference on a given PDB file.
 
 positional arguments:
   input_pdb_code        Path to the input PDB file.
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
   --model_weights MODEL_WEIGHTS, -w MODEL_WEIGHTS
-                        Path to dictionary of torch.save()ed model state_dict and training parameters. Default: ./model_weights/laser_weights_0p1A_noise_ligandmpnn_split.pt
+                        Path to dictionary of torch.save()ed model state_dict and training parameters. Default: /nfs/polizzi/bfry/programs/LASErMPNN/model_weights/laser_weights_0p1A_noise_ligandmpnn_split.pt
   --output_path OUTPUT_PATH, -o OUTPUT_PATH
                         Path to the output PDB file.
   --temp SEQUENCE_TEMP, -t SEQUENCE_TEMP
@@ -75,6 +73,8 @@ optional arguments:
   --ebd, -e             Uses entropy based decoding order. Decodes all residues and selects the lowest entropy residue as next to decode, then recomputes all remaining residues. Takes longer than normal decoding.
   --repack_only         Only repack residues, do not design new ones.
   --ignore_ligand       Ignore ligands in the input PDB file.
+  --noncanonical_aa_ligand
+                        Featurize a noncanonical amino acid as a ligand.
 ```
 
 
@@ -87,9 +87,8 @@ python -m LASErMPNN.run_batch_inference -h
 This script is useful to generate multiple designs for one or multiple inputs. Creates an output directory with subdirectories for each input file (unless run with a single input file).
 
 ```text
-usage: run_batch_inference.py [-h] [--designs_per_batch DESIGNS_PER_BATCH] [--model_weights_path MODEL_WEIGHTS_PATH] [--sequence_temp SEQUENCE_TEMP] [--first_shell_sequence_temp FIRST_SHELL_SEQUENCE_TEMP] [--chi_temp CHI_TEMP]
-                              [--chi_min_p CHI_MIN_P] [--seq_min_p SEQ_MIN_P] [--device INFERENCE_DEVICE] [--use_water] [--silent] [--ignore_key_mismatch] [--disabled_residues DISABLED_RESIDUES] [--disable_charged_fs] [--fix_beta]
-                              [--repack_only_input_sequence] [--ignore_ligand]
+usage: run_batch_inference.py [-h] [--designs_per_batch DESIGNS_PER_BATCH] [--model_weights_path MODEL_WEIGHTS_PATH] [--sequence_temp SEQUENCE_TEMP] [--first_shell_sequence_temp FIRST_SHELL_SEQUENCE_TEMP] [--chi_temp CHI_TEMP] [--chi_min_p CHI_MIN_P] [--seq_min_p SEQ_MIN_P] [--device INFERENCE_DEVICE] [--use_water] [--silent]
+                              [--ignore_key_mismatch] [--disabled_residues DISABLED_RESIDUES] [--fix_beta] [--repack_only_input_sequence] [--ignore_ligand] [--budget_residue_sele_string BUDGET_RESIDUE_SELE_STRING] [--ala_budget ALA_BUDGET] [--gly_budget GLY_BUDGET] [--noncanonical_aa_ligand]
                               input_pdb_directory output_pdb_directory designs_per_input
 
 Run batch LASErMPNN inference.
@@ -99,12 +98,12 @@ positional arguments:
   output_pdb_directory  Path to directory to output LASErMPNN designs.
   designs_per_input     Number of designs to generate per input.
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
   --designs_per_batch DESIGNS_PER_BATCH, -b DESIGNS_PER_BATCH
                         Number of designs to generate per batch. If designs_per_input > designs_per_batch, chunks up the inference calls in batches of this size. Default is 30, can increase/decrease depending on available GPU memory.
   --model_weights_path MODEL_WEIGHTS_PATH, -w MODEL_WEIGHTS_PATH
-                        Path to model weights. Default: ./model_weights/laser_weights_0p1A_noise_ligandmpnn_split.pt
+                        Path to model weights. Default: /nfs/polizzi/bfry/programs/LASErMPNN/model_weights/laser_weights_0p1A_noise_ligandmpnn_split.pt
   --sequence_temp SEQUENCE_TEMP
                         Temperature for sequence sampling.
   --first_shell_sequence_temp FIRST_SHELL_SEQUENCE_TEMP
@@ -122,11 +121,15 @@ optional arguments:
                         Allows mismatched keys in checkpoint statedict
   --disabled_residues DISABLED_RESIDUES
                         Residues to disable in sampling.
-  --disable_charged_fs  Disables charged residues in the first shell.
   --fix_beta            If B-factors are set to 1, fixes the residue and rotamer, if not, designs that position.
   --repack_only_input_sequence
                         Repacks the input sequence without changing the sequence.
   --ignore_ligand       Ignore ligand in sampling.
+  --budget_residue_sele_string BUDGET_RESIDUE_SELE_STRING
+  --ala_budget ALA_BUDGET
+  --gly_budget GLY_BUDGET
+  --noncanonical_aa_ligand
+                        Featurize a noncanonical amino acid as a ligand.
 ```
 
 
