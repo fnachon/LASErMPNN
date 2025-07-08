@@ -513,6 +513,7 @@ def sample_model(
     verbose: bool = False, disable_pbar: bool = False, fs_sequence_temp: Optional[float] = None, chi_min_p: float = 0.0, seq_min_p: float = 0.0,
     ignore_chain_mask_zeros: bool = False, disabled_residues: Optional[List[str]] = ['X'], repack_all: bool = False,
     budget_residue_mask: Optional[torch.Tensor] = None, ala_budget: Optional[int] = 4, gly_budget: Optional[int] = 0,
+    disable_charged_fs: bool = False
 ) -> Sampled_Output:
     """
     Given a model and batch data, return the model's sampled output.
@@ -548,6 +549,7 @@ def sample_model(
             sequence_sample_temperature=sample_temperature_vector if sample_temperature_vector is not None else sequence_temp, 
             chi_angle_sample_temperature=chi_temp, disable_pbar=disable_pbar, chi_min_p=chi_min_p, seq_min_p=seq_min_p,
             ignore_chain_mask_zeros=ignore_chain_mask_zeros, disabled_residues=disabled_residues, repack_all=repack_all,
+            disable_charged_residue_mask=None if not disable_charged_fs else batch_data.first_shell_ligand_contact_mask
         )
 
     else:
@@ -691,11 +693,11 @@ def output_protein_structure(full_atom_coords: torch.Tensor, amino_acid_indices:
     protein.setElements([x[0] for x in atom_features['atom_labels']]) # type: ignore
     return protein
 
-
 def run_inference(
     input_pdb_path: str, path_to_weights: str, sequence_temp: Optional[float], bb_noise: float, inference_device: str, fix_beta: bool, output_path: str, strict_load: bool, use_edo: bool, 
     fs_sequence_temp: Optional[float], repack_only: bool, ignore_ligand: bool, noncanonical_aa_ligand: bool,
-    fs_calc_ca_distance: float = 10.0, fs_calc_no_calc_burial: bool = False, fs_calc_burial_hull_alpha_value: float = 9.0
+    fs_calc_ca_distance: float = 10.0, fs_calc_no_calc_burial: bool = False, fs_calc_burial_hull_alpha_value: float = 9.0,
+    disable_charged_fs: bool = False,
 ):
     print("Loading", input_pdb_path, "and running inference with", path_to_weights, "on", inference_device)
     if bb_noise > 0:
@@ -734,7 +736,10 @@ def run_inference(
 
     # Load the model and run inference
     model, params = load_model_from_parameter_dict(path_to_weights, inference_device, strict=strict_load)
-    sampled_output = sample_model(model, batch_data, sequence_temp, bb_noise, params, use_edo, fs_sequence_temp=fs_sequence_temp, repack_all=repack_only, budget_residue_mask=None) 
+    sampled_output = sample_model(
+        model, batch_data, sequence_temp, bb_noise, params, use_edo, fs_sequence_temp=fs_sequence_temp, repack_all=repack_only, budget_residue_mask=None,
+        disable_charged_fs=disable_charged_fs
+    ) 
 
     sampled_probs = sampled_output.sequence_logits.softmax(dim=-1).gather(1, sampled_output.sampled_sequence_indices.unsqueeze(-1)).squeeze(-1)
 
@@ -780,6 +785,7 @@ def parse_args():
     parser.add_argument('--fs_calc_ca_distance', type=float, default=10.0, help='Distance between a ligand heavy atom and CA carbon to consider that carbon first shell.')
     parser.add_argument('--fs_calc_burial_hull_alpha_value', type=float, default=9.0, help='Alpha parameter for defining convex hull. May want to try setting to larger values if using folds with larger cavities (ex: ~100.0).')
     parser.add_argument('--fs_no_calc_burial', action='store_true', help='Disable using a burial calculation when selecting first shell residues, if true uses only distance from --fs_calc_ca_distance')
+    parser.add_argument('--disable_charged_fs', action='store_true', help='Disable sampling D,K,R,E residues in the first shell around the ligand.')
 
     out = parser.parse_args()
 
@@ -798,6 +804,7 @@ if __name__ == "__main__":
         noncanonical_aa_ligand=parsed_args.noncanonical_aa_ligand,
         fs_calc_ca_distance=parsed_args.fs_calc_ca_distance, 
         fs_calc_no_calc_burial=parsed_args.fs_no_calc_burial, 
-        fs_calc_burial_hull_alpha_value=parsed_args.fs_calc_burial_hull_alpha_value
+        fs_calc_burial_hull_alpha_value=parsed_args.fs_calc_burial_hull_alpha_value,
+        disable_charged_fs=parsed_args.disable_charged_fs
     )
 

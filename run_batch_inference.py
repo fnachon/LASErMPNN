@@ -31,7 +31,8 @@ def _run_inference(
     first_shell_sequence_temp: Optional[float] = None, ignore_ligand: bool = False, 
     budget_residue_sele_string: str='', ala_budget: Optional[int]=None, gly_budget: Optional[int]=None,
     noncanonical_aa_ligand: bool = False, fs_calc_ca_distance: float = 10.0, 
-    fs_calc_burial_hull_alpha_value: float = 9.0, fs_no_calc_burial: bool = False
+    fs_calc_burial_hull_alpha_value: float = 9.0, fs_no_calc_burial: bool = False,
+    disable_charged_fs: bool = False
 ) -> Tuple[Sampled_Output, torch.Tensor, torch.Tensor, torch.Tensor, BatchData, ProteinComplexData]:
     model.eval()
 
@@ -80,7 +81,8 @@ def _run_inference(
         seq_min_p=seq_min_p, ignore_chain_mask_zeros=ignore_chain_mask_zeros, 
         disabled_residues=disabled_residues_list, repack_all=repack_only_input_sequence, 
         fs_sequence_temp=first_shell_sequence_temp,
-        budget_residue_mask=budget_residue_mask, ala_budget=ala_budget, gly_budget=gly_budget
+        budget_residue_mask=budget_residue_mask, ala_budget=ala_budget, gly_budget=gly_budget,
+        disable_charged_fs=disable_charged_fs
     )
     full_atom_coords = model.rotamer_builder.build_rotamers(batch_data.backbone_coords, sampled_output.sampled_chi_degrees, sampled_output.sampled_sequence_indices, add_nonrotatable_hydrogens=True)
     assert isinstance(full_atom_coords, torch.Tensor), "unreachable."
@@ -101,7 +103,7 @@ def run_inference(
         first_shell_sequence_temp=None, ignore_ligand=False, noncanonical_aa_ligand=False,
         budget_residue_sele_string: str='', ala_budget: Optional[int]=None, gly_budget: Optional[int]=None,
         fs_calc_ca_distance: float = 10.0, fs_calc_burial_hull_alpha_value: float = 9.0,
-        fs_no_calc_burial: bool = False
+        fs_no_calc_burial: bool = False, disable_charged_fs: bool = False
 ):
     sequence_temp = float(sequence_temp) if sequence_temp else None
     chi_temp = float(chi_temp) if chi_temp else None
@@ -155,7 +157,7 @@ def run_inference(
                 noncanonical_aa_ligand=noncanonical_aa_ligand,
                 fs_calc_ca_distance=fs_calc_ca_distance, 
                 fs_calc_burial_hull_alpha_value=fs_calc_burial_hull_alpha_value,
-                fs_no_calc_burial=fs_no_calc_burial
+                fs_no_calc_burial=fs_no_calc_burial, disable_charged_fs=disable_charged_fs
             )
             
             for idx in range(curr_num_to_design):
@@ -205,6 +207,7 @@ def parse_args(default_weights_path: str):
     parser.add_argument('--fs_calc_ca_distance', type=float, default=10.0, help='Distance between a ligand heavy atom and CA carbon to consider that carbon first shell.')
     parser.add_argument('--fs_calc_burial_hull_alpha_value', type=float, default=9.0, help='Alpha parameter for defining convex hull. May want to try setting to larger values if using folds with larger cavities (ex: ~100.0).')
     parser.add_argument('--fs_no_calc_burial', action='store_true', help='Disable using a burial calculation when selecting first shell residues, if true uses only distance from --fs_calc_ca_distance')
+    parser.add_argument('--disable_charged_fs', action='store_true', help='Disable sampling D,K,R,E residues in the first shell around the ligand.')
 
     parsed_args = parser.parse_args()
 
