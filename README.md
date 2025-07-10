@@ -12,8 +12,6 @@
 > For an example of how to adjust protonation from a smiles string, check out the script `./protonate_and_add_conect_records.py` from the [NISE repo](https://github.com/polizzilab/NISE/blob/main/protonate_and_add_conect_records.py)
 
 ### TODO:
-
-- [ ] Make Release when finalized.
 - [ ] Add Colab notebook.
 - [ ] Add pdb code dataset split text files to avoid digging into code.
 - [ ] Add LigandMPNN architecture retraining code.
