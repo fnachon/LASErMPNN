@@ -192,7 +192,7 @@ def run_inference(
     if input_pdb_directory.is_dir():
         all_input_files = [input_pdb_directory / x for x in input_pdb_directory.glob('*.pdb')]
         make_subdir = True
-    elif input_pdb_directory.exists() and '.pdb' in input_pdb_directory.name:
+    elif input_pdb_directory.exists() and ('.pdb' in input_pdb_directory.name): # Could be .pdb or .pdb.gz
         all_input_files = [input_pdb_directory]
     elif input_pdb_directory.exists() and input_pdb_directory.suffix == '.txt':
         all_input_files = [Path(x.strip()) for x in open(input_pdb_directory, 'r').readlines() if Path(x.strip()).exists()]
@@ -217,7 +217,7 @@ def run_inference(
                 output_subdir_path.mkdir(exist_ok=True, parents=True)
                 output_files_chunk.append(output_subdir_path)
         else:
-            output_files_chunk = [output_subdir_path]
+            output_files_chunk = [output_pdb_directory]
             output_pdb_directory.mkdir(exist_ok=True)
 
         designs_remaining = designs_per_input
@@ -239,7 +239,6 @@ def run_inference(
                 fs_no_calc_burial=fs_no_calc_burial, disable_charged_fs=disable_charged_fs
             )
 
-            
             idx_offset = 0
             for jdx, data in enumerate(data_list):
                 for idx in range(curr_num_to_design):
@@ -260,13 +259,13 @@ def run_inference(
             designs_remaining -= curr_num_to_design
 
 
-def parse_args(default_weights_path: str):
+def parse_args(default_weights_path: os.PathLike):
     parser = argparse.ArgumentParser(description='Run batch LASErMPNN inference.')
     parser.add_argument('input_pdb_directory', type=str, help='Path to directory of input .pdb or .pdb.gz files, a single input .pdb or .pdb.gz file, or a .txt file of paths to input .pdb or .pdb.gz files.')
     parser.add_argument('output_pdb_directory', type=str, help='Path to directory to output LASErMPNN designs.')
     parser.add_argument('designs_per_input', type=int, help='Number of designs to generate per input.')
     parser.add_argument('--designs_per_batch', '-b', type=int, default=30, help='Number of designs to generate per batch. If designs_per_input > designs_per_batch, chunks up the inference calls in batches of this size. Default is 30, can increase/decrease depending on available GPU memory.')
-    parser.add_argument('--inputs_processed_simultaneously', type=int, default=1, help='When passed a list of multiple files, this is the number of input files to process per pass through the GPU. Useful when generating a few sequences for many input files.')
+    parser.add_argument('--inputs_processed_simultaneously', type=int, default=5, help='When passed a list of multiple files, this is the number of input files to process per pass through the GPU. Useful when generating a few sequences for many input files.')
     parser.add_argument('--model_weights_path', '-w', type=str, default=f'{default_weights_path}', help=f'Path to model weights. Default: {default_weights_path}')
 
     parser.add_argument('--sequence_temp', type=float, default=None, help='Temperature for sequence sampling.')
