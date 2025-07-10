@@ -95,9 +95,10 @@ python -m LASErMPNN.run_batch_inference -h
 This script is useful to generate multiple designs for one or multiple inputs. Creates an output directory with subdirectories for each input file (unless run with a single input file).
 
 ```text
-usage: run_batch_inference.py [-h] [--designs_per_batch DESIGNS_PER_BATCH] [--model_weights_path MODEL_WEIGHTS_PATH] [--sequence_temp SEQUENCE_TEMP] [--first_shell_sequence_temp FIRST_SHELL_SEQUENCE_TEMP] [--chi_temp CHI_TEMP] [--chi_min_p CHI_MIN_P] [--seq_min_p SEQ_MIN_P] [--device INFERENCE_DEVICE] [--use_water] [--silent]
-                              [--ignore_key_mismatch] [--disabled_residues DISABLED_RESIDUES] [--fix_beta] [--repack_only_input_sequence] [--ignore_ligand] [--budget_residue_sele_string BUDGET_RESIDUE_SELE_STRING] [--ala_budget ALA_BUDGET] [--gly_budget GLY_BUDGET] [--noncanonical_aa_ligand] [--fs_calc_ca_distance FS_CALC_CA_DISTANCE]
-                              [--fs_calc_burial_hull_alpha_value FS_CALC_BURIAL_HULL_ALPHA_VALUE] [--fs_no_calc_burial] [--disable_charged_fs]
+usage: run_batch_inference.py [-h] [--designs_per_batch DESIGNS_PER_BATCH] [--inputs_processed_simultaneously INPUTS_PROCESSED_SIMULTANEOUSLY] [--model_weights_path MODEL_WEIGHTS_PATH] [--sequence_temp SEQUENCE_TEMP]
+                              [--first_shell_sequence_temp FIRST_SHELL_SEQUENCE_TEMP] [--chi_temp CHI_TEMP] [--chi_min_p CHI_MIN_P] [--seq_min_p SEQ_MIN_P] [--device INFERENCE_DEVICE] [--use_water] [--silent] [--ignore_key_mismatch]
+                              [--disabled_residues DISABLED_RESIDUES] [--fix_beta] [--repack_only_input_sequence] [--ignore_ligand] [--budget_residue_sele_string BUDGET_RESIDUE_SELE_STRING] [--ala_budget ALA_BUDGET] [--gly_budget GLY_BUDGET]
+                              [--noncanonical_aa_ligand] [--fs_calc_ca_distance FS_CALC_CA_DISTANCE] [--fs_calc_burial_hull_alpha_value FS_CALC_BURIAL_HULL_ALPHA_VALUE] [--fs_no_calc_burial] [--disable_charged_fs]
                               input_pdb_directory output_pdb_directory designs_per_input
 
 Run batch LASErMPNN inference.
@@ -111,6 +112,8 @@ options:
   -h, --help            show this help message and exit
   --designs_per_batch DESIGNS_PER_BATCH, -b DESIGNS_PER_BATCH
                         Number of designs to generate per batch. If designs_per_input > designs_per_batch, chunks up the inference calls in batches of this size. Default is 30, can increase/decrease depending on available GPU memory.
+  --inputs_processed_simultaneously INPUTS_PROCESSED_SIMULTANEOUSLY, -n INPUTS_PROCESSED_SIMULTANEOUSLY
+                        When passed a list of multiple files, this is the number of input files to process per pass through the GPU. Useful when generating a few sequences for many input files.
   --model_weights_path MODEL_WEIGHTS_PATH, -w MODEL_WEIGHTS_PATH
                         Path to model weights. Default: /nfs/polizzi/bfry/programs/LASErMPNN/model_weights/laser_weights_0p1A_noise_ligandmpnn_split.pt
   --sequence_temp SEQUENCE_TEMP
