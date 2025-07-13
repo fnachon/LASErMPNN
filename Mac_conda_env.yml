@@ -1,0 +1,29 @@
+name: lasermpnn
+channels:
+  - conda-forge
+  - pyg
+  - defaults
+dependencies:
+- python==3.10
+- pip
+- pytorch==2.7.1
+- scipy
+- numpy
+- pandas
+- rdkit
+- scikit-learn
+- h5py
+- pytest
+- ProDy
+- matplotlib
+- seaborn
+- jupyter
+- plotly
+- logomaker
+- wandb
+- tqdm
+- rdkit-to-params
+- pip:
+  - pykeops
+  - torch-scatter -f https://data.pyg.org/whl/torch-2.7.0+cpu.html  
+  - torch-cluster -f https://data.pyg.org/whl/torch-2.7.0+cpu.html

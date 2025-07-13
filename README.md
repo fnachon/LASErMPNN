@@ -29,12 +29,23 @@ To install the training environment, run the following set of commands using a [
 conda env create -f conda_env.yml -y
 ```
 
+or for Mac users
+
+```bash
+conda env create -f Mac_conda_env.yml -y
+```
+
 This will create an environment called `lasermpnn`.
 
 To ensure your conda installation is using the libmamba solver, run `conda config --show-sources` 
 and ensure the output has `solver: libmamba` at the bottom. 
 If not, run `conda config --set-solver libmamba`.
 
+### Installation
+
+```bash
+pip install -e .
+```
 
 ### Running Inference
 
