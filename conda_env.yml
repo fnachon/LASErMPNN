@@ -30,3 +30,4 @@ dependencies:
   - wandb
   - tqdm
   - rdkit-to-params
+  - pdbecif

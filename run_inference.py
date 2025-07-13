@@ -24,6 +24,7 @@ from LASErMPNN.utils.model import LASErMPNN, Sampled_Output
 from LASErMPNN.utils.pdb_dataset import BatchData, UnprocessedLigandData, idealize_backbone_coords
 from LASErMPNN.utils.build_rotamers import RotamerBuilder
 from LASErMPNN.utils.constants import MAX_NUM_RESIDUE_ATOMS, aa_short_to_idx, aa_idx_to_short, aa_idx_to_long, aa_to_chi_angle_atom_index, dataset_atom_order, aa_long_to_short, atom_to_atomic_number, hydrogen_extended_dataset_atom_order, atomic_number_to_atom
+from LASErMPNN.utils.burial_calc import compute_fast_ligand_burial_mask
 
 CURR_FILE_DIR_PATH = Path(__file__).parent
 rotamer_builder_cpu = RotamerBuilder(5.0)
@@ -147,6 +148,10 @@ class ProteinComplexData:
 
     # Ligand metadata.
     ligand_info: LigandInfo = field(default_factory=LigandInfo)
+
+    first_shell_ca_distance: float = 10.0
+    first_shell_buried_only: bool = True
+    first_shell_burial_calc_hull_alpha: float = 9.0
 
     def __post_init__(self):
         all_data = defaultdict(list)
@@ -312,6 +317,15 @@ class ProteinComplexData:
         zeros_long = torch.zeros(self.sequence_indices.shape[0], dtype=torch.long)
         zeros_float = torch.zeros(self.sequence_indices.shape[0], dtype=torch.float)
         zeros_bool = torch.zeros(self.sequence_indices.shape[0], dtype=torch.bool)
+        
+        ligand_heavy_atom_coords = ligand_info.lig_coords[ligand_info.lig_atomic_numbers != 1]
+        # Define first shell as CA carbon within 10A of a ligand heavy atom.
+        first_shell_mask = (torch.cdist(bb_coords[:, 1], ligand_heavy_atom_coords) < self.first_shell_ca_distance).any(dim=-1)
+        if self.first_shell_buried_only:
+            # Identifies backbone frames with (virtual) CB atoms within a convex hull defined by the other CB atoms.
+            cb_coords = bb_coords[:, 1].numpy()
+            burial_mask = compute_fast_ligand_burial_mask(cb_coords, cb_coords, alpha=self.first_shell_burial_calc_hull_alpha, num_rays=5)
+            first_shell_mask = first_shell_mask & burial_mask
 
         if fix_beta:
             chain_mask = self.fixed_rotamers
@@ -337,7 +351,7 @@ class ProteinComplexData:
                 'msa_data': msa_data,
                 'msa_depth_weight': zeros_float,
                 'unprocessed_ligand_input_data': ligand_info,
-                'first_shell_ligand_contact_mask': zeros_bool,
+                'first_shell_ligand_contact_mask': first_shell_mask,
                 'sc_mediated_hbond_counts': zeros_long,
             }
         else:
@@ -358,7 +372,7 @@ class ProteinComplexData:
                 'msa_data': torch.cat([msa_data for _ in range(num_copies)], dim=0),
                 'msa_depth_weight': torch.cat([zeros_float for _ in range(num_copies)], dim=0),
                 'unprocessed_ligand_input_data': ligand_info,
-                'first_shell_ligand_contact_mask': torch.cat([zeros_bool for _ in range(num_copies)], dim=0),
+                'first_shell_ligand_contact_mask': torch.cat([first_shell_mask for _ in range(num_copies)], dim=0),
                 'sc_mediated_hbond_counts': torch.cat([zeros_long for _ in range(num_copies)], dim=0),
             }
 
@@ -499,6 +513,7 @@ def sample_model(
     verbose: bool = False, disable_pbar: bool = False, fs_sequence_temp: Optional[float] = None, chi_min_p: float = 0.0, seq_min_p: float = 0.0,
     ignore_chain_mask_zeros: bool = False, disabled_residues: Optional[List[str]] = ['X'], repack_all: bool = False,
     budget_residue_mask: Optional[torch.Tensor] = None, ala_budget: Optional[int] = 4, gly_budget: Optional[int] = 0,
+    disable_charged_fs: bool = False
 ) -> Sampled_Output:
     """
     Given a model and batch data, return the model's sampled output.
@@ -526,7 +541,6 @@ def sample_model(
         if fs_sequence_temp is not None:
             sequence_temp = 1e-6 if sequence_temp is None else sequence_temp
             sample_temperature_vector = torch.full((batch_data.num_residues,), sequence_temp, dtype=torch.float, device=model.device)
-            # TODO: Use a distance cutoff definition of fs_sequence_temp instead of first shell ligand contact mask.
             sample_temperature_vector[batch_data.first_shell_ligand_contact_mask] = fs_sequence_temp
 
         sampling_output = model.sample(
@@ -535,6 +549,7 @@ def sample_model(
             sequence_sample_temperature=sample_temperature_vector if sample_temperature_vector is not None else sequence_temp, 
             chi_angle_sample_temperature=chi_temp, disable_pbar=disable_pbar, chi_min_p=chi_min_p, seq_min_p=seq_min_p,
             ignore_chain_mask_zeros=ignore_chain_mask_zeros, disabled_residues=disabled_residues, repack_all=repack_all,
+            disable_charged_residue_mask=None if not disable_charged_fs else batch_data.first_shell_ligand_contact_mask
         )
 
     else:
@@ -678,8 +693,12 @@ def output_protein_structure(full_atom_coords: torch.Tensor, amino_acid_indices:
     protein.setElements([x[0] for x in atom_features['atom_labels']]) # type: ignore
     return protein
 
-
-def run_inference(input_pdb_path: str, path_to_weights: str, sequence_temp: Optional[float], bb_noise: float, inference_device: str, fix_beta: bool, output_path: str, strict_load: bool, use_edo: bool, fs_sequence_temp: Optional[float], repack_only: bool, ignore_ligand: bool, noncanonical_aa_ligand: bool):
+def run_inference(
+    input_pdb_path: str, path_to_weights: str, sequence_temp: Optional[float], bb_noise: float, inference_device: str, fix_beta: bool, output_path: str, strict_load: bool, use_edo: bool, 
+    fs_sequence_temp: Optional[float], repack_only: bool, ignore_ligand: bool, noncanonical_aa_ligand: bool,
+    fs_calc_ca_distance: float = 10.0, fs_calc_no_calc_burial: bool = False, fs_calc_burial_hull_alpha_value: float = 9.0,
+    disable_charged_fs: bool = False,
+):
     print("Loading", input_pdb_path, "and running inference with", path_to_weights, "on", inference_device)
     if bb_noise > 0:
         print(f"Noising backbone with {bb_noise}A Gaussian noise.")
@@ -691,7 +710,12 @@ def run_inference(input_pdb_path: str, path_to_weights: str, sequence_temp: Opti
         unique_betas = np.unique(np.concatenate([x.getBetas() for x in protein_hv.iterChains()])) # type: ignore
         assert len(unique_betas) <= 2 and np.isin(unique_betas, np.array([0.0, 1.0])).all(), f"Only B-Factors 0.0 and 1.0 are allowed when fixing residues with -b flag, please adjust your input. Found b-factors: {unique_betas}"
     
-    data = ProteinComplexData(protein_hv, input_pdb_path, treat_noncanonical_as_ligand=noncanonical_aa_ligand)
+    data = ProteinComplexData(
+        protein_hv, input_pdb_path, treat_noncanonical_as_ligand=noncanonical_aa_ligand, 
+        first_shell_ca_distance=fs_calc_ca_distance, 
+        first_shell_buried_only=(not fs_calc_no_calc_burial),
+        first_shell_burial_calc_hull_alpha=fs_calc_burial_hull_alpha_value
+    )
     batch_data = data.output_batch_data(fix_beta)
 
     if ignore_ligand:
@@ -712,7 +736,10 @@ def run_inference(input_pdb_path: str, path_to_weights: str, sequence_temp: Opti
 
     # Load the model and run inference
     model, params = load_model_from_parameter_dict(path_to_weights, inference_device, strict=strict_load)
-    sampled_output = sample_model(model, batch_data, sequence_temp, bb_noise, params, use_edo, fs_sequence_temp=fs_sequence_temp, repack_all=repack_only, budget_residue_mask=None) 
+    sampled_output = sample_model(
+        model, batch_data, sequence_temp, bb_noise, params, use_edo, fs_sequence_temp=fs_sequence_temp, repack_all=repack_only, budget_residue_mask=None,
+        disable_charged_fs=disable_charged_fs
+    ) 
 
     sampled_probs = sampled_output.sequence_logits.softmax(dim=-1).gather(1, sampled_output.sampled_sequence_indices.unsqueeze(-1)).squeeze(-1)
 
@@ -755,6 +782,11 @@ def parse_args():
     parser.add_argument('--ignore_ligand', action='store_true', help='Ignore ligands in the input PDB file.')
     parser.add_argument('--noncanonical_aa_ligand', action='store_true', help='Featurize a noncanonical amino acid as a ligand.')
 
+    parser.add_argument('--fs_calc_ca_distance', type=float, default=10.0, help='Distance between a ligand heavy atom and CA carbon to consider that carbon first shell.')
+    parser.add_argument('--fs_calc_burial_hull_alpha_value', type=float, default=9.0, help='Alpha parameter for defining convex hull. May want to try setting to larger values if using folds with larger cavities (ex: ~100.0).')
+    parser.add_argument('--fs_no_calc_burial', action='store_true', help='Disable using a burial calculation when selecting first shell residues, if true uses only distance from --fs_calc_ca_distance')
+    parser.add_argument('--disable_charged_fs', action='store_true', help='Disable sampling D,K,R,E residues in the first shell around the ligand.')
+
     out = parser.parse_args()
 
     seq_temp = float(out.sequence_temp) if out.sequence_temp else None
@@ -768,6 +800,11 @@ if __name__ == "__main__":
         parsed_args.input_pdb_code, parsed_args.model_weights, sequence_temp, backbone_noise, 
         parsed_args.device, parsed_args.fix_beta, parsed_args.output_path, parsed_args.strict_load, 
         parsed_args.entropy_decoder, parsed_args.fs_sequence_temp,
-        repack_only=parsed_args.repack_only, ignore_ligand=parsed_args.ignore_ligand, noncanonical_aa_ligand=parsed_args.noncanonical_aa_ligand
+        repack_only=parsed_args.repack_only, ignore_ligand=parsed_args.ignore_ligand, 
+        noncanonical_aa_ligand=parsed_args.noncanonical_aa_ligand,
+        fs_calc_ca_distance=parsed_args.fs_calc_ca_distance, 
+        fs_calc_no_calc_burial=parsed_args.fs_no_calc_burial, 
+        fs_calc_burial_hull_alpha_value=parsed_args.fs_calc_burial_hull_alpha_value,
+        disable_charged_fs=parsed_args.disable_charged_fs
     )
 
