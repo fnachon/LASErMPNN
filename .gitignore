@@ -17,3 +17,5 @@ LASErMPNN.egg-info/dependency_links.txt
 test/result-ChoE.pdb
 test/ChoE-ACh.pdb
 __pycache__/run_inference.cpython-310.pyc
+*.pyc
+/test
