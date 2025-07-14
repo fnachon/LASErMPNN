@@ -12,6 +12,7 @@ dependencies:
 - pandas
 - rdkit
 - scikit-learn
+- biopython
 - h5py
 - pytest
 - ProDy
