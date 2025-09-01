@@ -202,7 +202,12 @@ def run_inference(
         raise FileNotFoundError
 
     # Loop over all files to design.
-    all_pdb_files_for_processing = sorted(all_input_files, key=lambda x: parse_int_chunks_or_string(x.stem))
+    try:
+        # Tries to sort the files by any integer chunks in the filename, falls back to sorting by string if no integers are found.
+        all_pdb_files_for_processing = sorted(all_input_files, key=lambda x: parse_int_chunks_or_string(x.stem))
+    except:
+        all_pdb_files_for_processing = sorted(all_input_files)
+
     if verbose:
         print(f"Processing {input_pdb_directory}:")
         print(f"Generating {designs_per_input} designs for {len(all_pdb_files_for_processing)} inputs with {model_weights_path} on {inference_device} at temperature {sequence_temp}")

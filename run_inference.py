@@ -241,7 +241,7 @@ class ProteinComplexData:
                 value = torch.stack(value, dim=0)
             setattr(self, key, value)
         
-    def compute_backbone_coords(self) -> torch.Tensor:
+    def compute_backbone_coords(self) -> Tuple[torch.Tensor, torch.Tensor]:
         heavy_atom_coords = self.heavy_atom_coords.clone()
 
         backbone_coords = heavy_atom_coords.gather(1, torch.tensor([[0, 1, 4, 2, 3]]).unsqueeze(-1).expand(self.heavy_atom_coords.shape[0], -1, 3))
