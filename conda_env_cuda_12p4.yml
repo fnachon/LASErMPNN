@@ -1,0 +1,33 @@
+name: lasermpnn
+channels:
+  - nvidia/label/cuda-12.4.0
+  - pytorch
+  - pyg
+  - conda-forge
+  - defaults
+dependencies:
+- python>=3.8
+- pip
+- pytorch::pytorch
+- nvidia/label/cuda-12.4.0::cuda-toolkit
+- pyg::pytorch-scatter
+- pyg::pytorch-cluster
+- scipy
+- numpy
+- pandas
+- rdkit
+- scikit-learn
+- h5py
+- pytest
+- ProDy
+- matplotlib
+- seaborn
+- jupyter
+- plotly
+- pip:
+  - pykeops
+  - logomaker
+  - wandb
+  - tqdm
+  - rdkit-to-params
+  - pdbecif

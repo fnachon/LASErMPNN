@@ -762,7 +762,11 @@ def run_inference(
 
 
 def parse_args():
-    default_weights_path = str(CURR_FILE_DIR_PATH / 'model_weights/laser_weights_0p1A_noise_ligandmpnn_split.pt')
+    # Previous default
+    # default_weights_path = str(CURR_FILE_DIR_PATH / 'model_weights/laser_weights_0p1A_noise_ligandmpnn_split.pt')
+
+    # New default: used no test/val set.
+    default_weights_path = str(CURR_FILE_DIR_PATH / 'model_weights/laser_weights_0p1A_nothing_heldout.pt')
 
     parser = argparse.ArgumentParser(description='Run LASErMPNN inference on a given PDB file.')
     # Required input:

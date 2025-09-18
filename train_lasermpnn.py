@@ -713,7 +713,8 @@ if __name__ == "__main__":
         'random_seed': None if not debug else 42,
         'master_port': '12987',
 
-        'soluble_proteins_only': True,
+        # We attempted to create a 'soluble-mpnn' version of lasermpnn but the sequences it generates look qualitatively worse than the standard lasermpnn model.
+        'soluble_proteins_only': False,
 
         # Idealizes all residue frames if set to True, not ideal for foldability of natural proteins, but may be more useful for de novo design.
         'recompute_all_cb_atoms': True, 

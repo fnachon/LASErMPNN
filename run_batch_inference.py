@@ -271,7 +271,7 @@ def parse_args(default_weights_path: os.PathLike):
     parser.add_argument('designs_per_input', type=int, help='Number of designs to generate per input.')
     parser.add_argument('--designs_per_batch', '-b', type=int, default=30, help='Number of designs to generate per batch. If designs_per_input > designs_per_batch, chunks up the inference calls in batches of this size. Default is 30, can increase/decrease depending on available GPU memory.')
     parser.add_argument('--inputs_processed_simultaneously', '-n', type=int, default=5, help='When passed a list of multiple files, this is the number of input files to process per pass through the GPU. Useful when generating a few sequences for many input files.')
-    parser.add_argument('--model_weights_path', '-w', type=str, default=f'{default_weights_path}', help=f'Path to model weights. Default: {default_weights_path}')
+    parser.add_argument('--model_weights_path', '-w', type=str, default=f'{default_weights_path}', help=f'Path to model weights. Default: {default_weights_path}. Other weights can be found in the ./model_weights/ directory.')
 
     parser.add_argument('--sequence_temp', type=float, default=None, help='Temperature for sequence sampling.')
     parser.add_argument('--first_shell_sequence_temp', type=float, default=None, help='Temperature for first shell sequence sampling. Can be used to disentangle binding site temperature from global sequence temperature for harder folds.')
@@ -304,5 +304,10 @@ def parse_args(default_weights_path: os.PathLike):
 
 
 if __name__ == "__main__":
-    default_weights_path = CURR_FILE_DIR_PATH / 'model_weights/laser_weights_0p1A_noise_ligandmpnn_split.pt'
+    # Previous default, weights used in paper analyses
+    # default_weights_path = CURR_FILE_DIR_PATH / 'model_weights/laser_weights_0p1A_noise_ligandmpnn_split.pt'
+
+    # New default: used no test/val set.
+    default_weights_path = str(CURR_FILE_DIR_PATH / 'model_weights/laser_weights_0p1A_nothing_heldout.pt')
+
     run_inference(**parse_args(default_weights_path))
