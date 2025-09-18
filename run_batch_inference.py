@@ -91,7 +91,7 @@ def _run_inference(
     budget_residue_sele_string: str='', ala_budget: Optional[int]=None, gly_budget: Optional[int]=None,
     noncanonical_aa_ligand: bool = False, fs_calc_ca_distance: float = 10.0, 
     fs_calc_burial_hull_alpha_value: float = 9.0, fs_no_calc_burial: bool = False,
-    disable_charged_fs: bool = False
+    disable_charged_fs: bool = False, repack_all: bool = False
 ) -> Tuple[Sampled_Output, torch.Tensor, torch.Tensor, torch.Tensor, BatchData, ProteinComplexData]:
     model.eval()
 
@@ -151,7 +151,7 @@ def _run_inference(
         model, batch_data, sequence_temp, bb_noise, params, 
         disable_pbar=disable_pbar, chi_temp=chi_temp, chi_min_p=chi_min_p, 
         seq_min_p=seq_min_p, ignore_chain_mask_zeros=ignore_chain_mask_zeros, 
-        disabled_residues=disabled_residues_list, repack_all=repack_only_input_sequence, 
+        disabled_residues=disabled_residues_list, repack_all=repack_only_input_sequence or repack_all, 
         fs_sequence_temp=first_shell_sequence_temp,
         budget_residue_mask=budget_residue_mask, ala_budget=ala_budget, gly_budget=gly_budget,
         disable_charged_fs=disable_charged_fs
@@ -175,7 +175,7 @@ def run_inference(
         first_shell_sequence_temp=None, ignore_ligand=False, noncanonical_aa_ligand=False,
         budget_residue_sele_string: str='', ala_budget: Optional[int]=None, gly_budget: Optional[int]=None,
         fs_calc_ca_distance: float = 10.0, fs_calc_burial_hull_alpha_value: float = 9.0,
-        fs_no_calc_burial: bool = False, disable_charged_fs: bool = False
+        fs_no_calc_burial: bool = False, disable_charged_fs: bool = False, repack_all: bool = False
 ):
     sequence_temp = float(sequence_temp) if sequence_temp else None
     chi_temp = float(chi_temp) if chi_temp else None
@@ -241,7 +241,7 @@ def run_inference(
                 noncanonical_aa_ligand=noncanonical_aa_ligand,
                 fs_calc_ca_distance=fs_calc_ca_distance, 
                 fs_calc_burial_hull_alpha_value=fs_calc_burial_hull_alpha_value,
-                fs_no_calc_burial=fs_no_calc_burial, disable_charged_fs=disable_charged_fs
+                fs_no_calc_burial=fs_no_calc_burial, disable_charged_fs=disable_charged_fs, repack_all=repack_all
             )
 
             idx_offset = 0
@@ -291,6 +291,7 @@ def parse_args(default_weights_path: os.PathLike):
     parser.add_argument('--ala_budget', type=int, default=4, help='')
     parser.add_argument('--gly_budget', type=int, default=0, help='')
     parser.add_argument('--noncanonical_aa_ligand', action='store_true', help='Featurize a noncanonical amino acid as a ligand.')
+    parser.add_argument('--repack_all', action='store_true', help='Repack all residues, even those with chain_mask=1.')
 
     parser.add_argument('--fs_calc_ca_distance', type=float, default=10.0, help='Distance between a ligand heavy atom and CA carbon to consider that carbon first shell.')
     parser.add_argument('--fs_calc_burial_hull_alpha_value', type=float, default=9.0, help='Alpha parameter for defining convex hull. May want to try setting to larger values if using folds with larger cavities (ex: ~100.0).')
