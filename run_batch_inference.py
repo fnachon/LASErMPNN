@@ -219,6 +219,8 @@ def run_inference(
 
     input_chunks = np.array_split(all_pdb_files_for_processing, (len(all_pdb_files_for_processing) // inputs_processed_simultaneously) + 1)
     for files_chunk in tqdm(input_chunks):
+        if len(files_chunk) == 0:
+            continue
         # Make an output subdirectory for each input file.
         output_files_chunk = []
         if make_subdir:
@@ -278,12 +280,12 @@ def run_inference(
                             except:
                                 pass
 
+                idx_offset += curr_num_to_design
+
             if output_fasta or output_fasta_only:
                 with open(output_pdb_directory / f'designs.fasta', 'a') as fasta_out:
                     fasta_out.writelines(fasta_lines)
 
-                idx_offset += curr_num_to_design
-            
             curr_output_idx_offset += curr_num_to_design
             designs_remaining -= curr_num_to_design
 

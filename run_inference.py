@@ -646,12 +646,12 @@ def output_protein_structure(full_atom_coords: torch.Tensor, amino_acid_indices:
     Write the protein structure to a ProDy AtomGroup Object.
     """
 
-    assert len(full_atom_coords) == len(amino_acid_indices), f"Coordinates and sequence indices must have the same number of elements {full_atom_coords.shape}, {amino_acid_indices.shape}"
-    assert len(full_atom_coords) == len(residue_metadata), f"Input lists must be the same length {full_atom_coords.shape}, {len(amino_acid_indices)}"
-    assert len(full_atom_coords) == len(nh_coords), f"Coordinates and NH coordinates must have the same number of elements {full_atom_coords.shape}, {nh_coords.shape}"
+    assert int(full_atom_coords.shape[0]) == len(amino_acid_indices), f"Coordinates and sequence indices must have the same number of elements {full_atom_coords.shape[0]}, {amino_acid_indices.shape}"
+    assert int(full_atom_coords.shape[0]) == len(residue_metadata), f"Input lists must be the same length {full_atom_coords.shape[0]}, {len(residue_metadata)}, {residue_metadata}"
+    assert int(full_atom_coords.shape[0]) == len(nh_coords), f"Coordinates and NH coordinates must have the same number of elements {full_atom_coords.shape[0]}, {nh_coords.shape}"
 
     if bfactors is not None:
-        assert len(full_atom_coords) == len(bfactors), f"Coordinates and B-factors must have the same number of elements {full_atom_coords.shape}, {bfactors.shape}"
+        assert int(full_atom_coords.shape[0]) == len(bfactors), f"Coordinates and B-factors must have the same number of elements {full_atom_coords.shape[0]}, {bfactors.shape}"
 
     atom_order_dict = hydrogen_extended_dataset_atom_order if full_atom_coords.shape[1] == 24 else dataset_atom_order
     if bfactors is None:
