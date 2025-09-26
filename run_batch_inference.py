@@ -175,7 +175,8 @@ def run_inference(
         first_shell_sequence_temp=None, ignore_ligand=False, noncanonical_aa_ligand=False,
         budget_residue_sele_string: str='', ala_budget: Optional[int]=None, gly_budget: Optional[int]=None,
         fs_calc_ca_distance: float = 10.0, fs_calc_burial_hull_alpha_value: float = 9.0,
-        fs_no_calc_burial: bool = False, disable_charged_fs: bool = False, repack_all: bool = False
+        fs_no_calc_burial: bool = False, disable_charged_fs: bool = False, repack_all: bool = False,
+        output_fasta: bool = False, output_fasta_only: bool = False
 ):
     sequence_temp = float(sequence_temp) if sequence_temp else None
     chi_temp = float(chi_temp) if chi_temp else None
@@ -200,6 +201,10 @@ def run_inference(
     else:
         print(f'Could not find {input_pdb_directory}')
         raise FileNotFoundError
+
+    # Delete old fasta file if it exists
+    if (output_fasta or output_fasta_only) and (output_pdb_directory / 'designs.fasta').exists():
+        os.remove(output_pdb_directory / 'designs.fasta')
 
     # Loop over all files to design.
     try:
@@ -244,6 +249,7 @@ def run_inference(
                 fs_no_calc_burial=fs_no_calc_burial, disable_charged_fs=disable_charged_fs, repack_all=repack_all
             )
 
+            fasta_lines = []
             idx_offset = 0
             for jdx, data in enumerate(data_list):
                 for idx in range(curr_num_to_design):
@@ -257,7 +263,25 @@ def run_inference(
                         out_complex += out_lig
                     except:
                         pass
-                    pr.writePDB(str(output_files_chunk[jdx] / f"design_{idx+curr_output_idx_offset}.pdb"), out_complex)
+
+                    if not output_fasta_only:
+                        pr.writePDB(str(output_files_chunk[jdx] / f"design_{idx+curr_output_idx_offset}.pdb"), out_complex)
+                    
+                    if output_fasta or output_fasta_only:
+                        for chain in out_complex.getHierView():
+                            try:
+                                sequence = chain.select("name CA").getSequence()
+                                segment_name = chain.getSegnames()[0]
+                                chain_name = chain.getChids()[0]
+                                score = np.log10(chain.select('name CA').getBetas()).mean() # Add overall log probability score
+                                fasta_lines.append(f'>{data.pdb_code}_design_{idx+curr_output_idx_offset}_segment_{segment_name}_chain_{chain_name} score={score}\n{sequence}\n')
+                            except:
+                                pass
+
+            if output_fasta or output_fasta_only:
+                with open(output_pdb_directory / f'designs.fasta', 'a') as fasta_out:
+                    fasta_out.writelines(fasta_lines)
+
                 idx_offset += curr_num_to_design
             
             curr_output_idx_offset += curr_num_to_design
@@ -292,6 +316,9 @@ def parse_args(default_weights_path: os.PathLike):
     parser.add_argument('--gly_budget', type=int, default=0, help='')
     parser.add_argument('--noncanonical_aa_ligand', action='store_true', help='Featurize a noncanonical amino acid as a ligand.')
     parser.add_argument('--repack_all', action='store_true', help='Repack all residues, even those with chain_mask=1.')
+
+    parser.add_argument('--output_fasta', action='store_true', help='Output a fasta file of the designed sequences in addition to the PDB files.')
+    parser.add_argument('--output_fasta_only', action='store_true', help='Output only a fasta file of the designed sequences, does not write PDB files.')
 
     parser.add_argument('--fs_calc_ca_distance', type=float, default=10.0, help='Distance between a ligand heavy atom and CA carbon to consider that carbon first shell.')
     parser.add_argument('--fs_calc_burial_hull_alpha_value', type=float, default=9.0, help='Alpha parameter for defining convex hull. May want to try setting to larger values if using folds with larger cavities (ex: ~100.0).')
