@@ -166,6 +166,6 @@ Training the Ligand Encoder module can be done with much lower memory and a sing
 
 ### Neural Iterative Selection & Expansion Implementation
 
-see https://www.github.com/polizzilab/NISE for a NISE protocol implementation using Boltz-1.
+see https://www.github.com/polizzilab/NISE for a NISE protocol implementation using Boltz-1x/2x.
 
 
