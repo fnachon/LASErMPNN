@@ -1,6 +1,6 @@
 # LASErMPNN: Small-Molecule Conditioned Protein Sequence Design
 
-### Check out the paper [here](https://www.biorxiv.org/content/10.1101/2025.04.22.649862v1)!
+### Check out the preprint [here](https://www.biorxiv.org/content/10.1101/2025.04.22.649862v1)!
 
 
 ![A block diagram of the LASErMPNN architecture depicting information flow through the network.](./images/laser_block_diagram.png)
