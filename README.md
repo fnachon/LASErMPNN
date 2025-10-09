@@ -1,3 +1,5 @@
+<a href=\"https://colab.research.google.com/github/polizzilab/LASErMPNN/blob/main/run_lasermpnn.ipynb\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>
+
 # LASErMPNN: Small-Molecule Conditioned Protein Sequence Design
 
 ### Check out the preprint [here](https://www.biorxiv.org/content/10.1101/2025.04.22.649862v1)!
