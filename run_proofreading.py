@@ -219,13 +219,14 @@ def main(
 
 
 if __name__ == '__main__':
+    default_weights_path = str(CURR_FILE_DIR_PATH / 'model_weights/laser_weights_0p1A_nothing_heldout.pt')
 
     import argparse
     parser = argparse.ArgumentParser(description='Run proofreading on a protein complex.')
     parser.add_argument('pdb_file', type=str, help='Path to the pdb file of the protein complex.')
     parser.add_argument('output_dir', type=str, help='Path to an output directory.')
     parser.add_argument('--device', '-d', type=str, default='cuda:0', help='Device to run the model on.')
-    parser.add_argument('--weights', '-w', type=str, default=str(CURR_FILE_DIR_PATH / "model_weights/laser_weights_0p1A_noise_ligandmpnn_split.pt"), help='Path to the weights file.')
+    parser.add_argument('--weights', '-w', type=str, default=default_weights_path, help=f'Path to the weights file. Defaults to {default_weights_path}.')
     parser.add_argument('--disable_inference_dropout', action='store_true', help='Disable inference dropout.')
     parser.add_argument('--silent', '-s', action='store_true', help='Disable printing.')
     parser.add_argument('--n_decoding_orders', type=int, default=10, help='Number of decoding orders to use.')
