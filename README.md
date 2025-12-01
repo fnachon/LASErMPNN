@@ -32,7 +32,7 @@ The commands below will create an environment called `lasermpnn` which you can t
 
 #### CUDA 11 Instructions
 
-To install the training environment on a system running CUDA 11 (check you cuda version by running `nvcc --version`), run the following set of commands using a [MiniForge](https://github.com/conda-forge/miniforge/releases/tag/24.11.3-2) installation (recommended) or an existing conda installation with a libmamba solver (see above).
+To install the training environment on a system running CUDA 11 (check your cuda version by running `nvcc --version`), run the following set of commands using a [MiniForge](https://github.com/conda-forge/miniforge/releases/tag/24.11.3-2) installation (recommended) or an existing conda installation with a libmamba solver (see above).
 
 ```bash
 conda env create -f conda_env.yml -y
@@ -40,7 +40,7 @@ conda env create -f conda_env.yml -y
 
 #### CUDA 12 Instructions
 
-To install the training environment on a system running CUDA 12 (check you cuda version by running `nvcc --version`), run the following set of commands using a [MiniForge](https://github.com/conda-forge/miniforge/releases/tag/24.11.3-2) installation (recommended) or an existing conda installation with a libmamba solver (see above).
+To install the training environment on a system running CUDA 12 (check your cuda version by running `nvcc --version`), run the following set of commands using a [MiniForge](https://github.com/conda-forge/miniforge/releases/tag/24.11.3-2) installation (recommended) or an existing conda installation with a libmamba solver (see above).
 
 This was tested on a system with CUDA 12.4, you might need to update the specfic CUDA version at the top of the `conda_env_12p4.yml` file if you have a different CUDA 12.x version.
 
