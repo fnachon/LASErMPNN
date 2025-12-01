@@ -195,6 +195,8 @@ def run_inference(
         make_subdir = True
     elif input_pdb_directory.exists() and ('.pdb' in input_pdb_directory.name): # Could be .pdb or .pdb.gz
         all_input_files = [input_pdb_directory]
+    elif input_pdb_directory.exists() and ('.cif' in input_pdb_directory.name): # Could be .cif or .cif.gz
+        all_input_files = [input_pdb_directory]
     elif input_pdb_directory.exists() and input_pdb_directory.suffix == '.txt':
         all_input_files = [Path(x.strip()) for x in open(input_pdb_directory, 'r').readlines() if Path(x.strip()).exists()]
         make_subdir = True
