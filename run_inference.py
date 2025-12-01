@@ -170,7 +170,7 @@ class ProteinComplexData:
         all_gly_protein = get_all_gly_protein(self.prody_protein)
         for idx, segchain in enumerate(all_gly_protein.getHierView()):
             for residue in segchain:
-                all_gly_resids[(segchain.getSegname(), segchain.getChid(), residue.getResnum(), residue.getIcode())] = residue
+                all_gly_resids[(str(segchain.getSegname()), str(segchain.getChid()), int(residue.getResnum()), str(residue.getIcode()))] = residue
 
         for idx, segchain in enumerate(self.prody_protein):
             assert isinstance(segchain, pr.atomic.chain.Chain), "Prody object is not a chain."
@@ -193,7 +193,7 @@ class ProteinComplexData:
                         self.ligand_info.add_ligand(create_ligand_info(residue, residue_identifier))
 
                 elif is_amino_acid(residue):
-                    gly_residue = all_gly_resids[(segchain.getSegname(), segchain.getChid(), resnum, icode)]
+                    gly_residue = all_gly_resids[(str(segchain.getSegname()), str(segchain.getChid()), int(resnum), str(icode))]
                     phi, psi = compute_phi_psi_angles(gly_residue) # type: ignore
                     phi_psi = torch.tensor([phi, psi], dtype=torch.float)
                     residue_coords, residue_sequence_index = get_residue_coords(residue, olc_resname)

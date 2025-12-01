@@ -17,23 +17,36 @@
 - [ ] Add pdb code dataset split text files to avoid digging into code.
 - [ ] Add LigandMPNN architecture retraining code.
 
+
 ### Environment Setup
 
 A minimal version of LASErMPNN could be run in inference mode in any Python environment with PyTorch, torch-scatter, and torch-cluster. 
 ProDy is used internally to read and write PDB files.
 
-To install the training environment, run the following set of commands using a [MiniForge](https://github.com/conda-forge/miniforge/releases/tag/24.11.3-2) installation (recommended) or an existing conda installation with a libmamba solver.
+To ensure your conda installation is using the libmamba solver, run `conda config --show-sources` 
+and ensure the output has `solver: libmamba` at the bottom. 
+If not, run `conda config --set-solver libmamba`.
+
+
+The commands below will create an environment called `lasermpnn` which you can then `conda activate lasermpnn` to run the LASErMPNN CLI scripts.
+
+#### CUDA 11 Instructions
+
+To install the training environment on a system running CUDA 11 (check you cuda version by running `nvcc --version`), run the following set of commands using a [MiniForge](https://github.com/conda-forge/miniforge/releases/tag/24.11.3-2) installation (recommended) or an existing conda installation with a libmamba solver (see above).
 
 ```bash
 conda env create -f conda_env.yml -y
 ```
 
-This will create an environment called `lasermpnn`.
+#### CUDA 12 Instructions
 
-To ensure your conda installation is using the libmamba solver, run `conda config --show-sources` 
-and ensure the output has `solver: libmamba` at the bottom. 
-If not, run `conda config --set-solver libmamba`.
+To install the training environment on a system running CUDA 12 (check you cuda version by running `nvcc --version`), run the following set of commands using a [MiniForge](https://github.com/conda-forge/miniforge/releases/tag/24.11.3-2) installation (recommended) or an existing conda installation with a libmamba solver (see above).
 
+This was tested on a system with CUDA 12.4, you might need to update the specfic CUDA version at the top of the `conda_env_12p4.yml` file if you have a different CUDA 12.x version.
+
+```bash
+conda env create -f conda_env_12p4.yml -y
+```
 
 ### Running Inference
 
