@@ -713,7 +713,7 @@ if __name__ == "__main__":
     ALTERNATE_DATABASE_PATH = Path('/nfs/polizzi/bfry/programs/LASErMPNN/')
     params = {
         'debug': (debug := False),
-        'use_wandb': False and not debug,
+        'use_wandb': True and not debug,
         'use_data_augmentations': (augment := True),
         'random_seed': None if not debug else 42,
         'master_port': '12987',
