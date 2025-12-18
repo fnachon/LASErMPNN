@@ -346,7 +346,7 @@ class LigandMPNN(nn.Module):
             else:
                 curr_out_logits = minp_warp_logits(curr_out_logits, seq_min_p)
                 if isinstance(sequence_sample_temperature, torch.Tensor) and (sequence_sample_temperature.numel() > 1):
-                    curr_out_probs = torch.softmax(curr_out_logits / sequence_sample_temperature[node_idces], dim=-1)
+                    curr_out_probs = torch.softmax(curr_out_logits / sequence_sample_temperature[node_idces].unsqueeze(-1), dim=-1)
                 else:
                     curr_out_probs = torch.softmax(curr_out_logits / sequence_sample_temperature, dim=-1)
                 curr_out_sample = torch.distributions.Categorical(probs=curr_out_probs).sample()

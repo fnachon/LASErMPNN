@@ -67,7 +67,10 @@ class UnprocessedLigandData():
         if self.lig_burial_mask is None:
             self.lig_burial_mask = torch.zeros((self.lig_coords.shape[0],), dtype=torch.bool, device=self.lig_coords.device)
 
-        self.lig_burial_mask[self.lig_batch_indices == batch_idx] = burial_mask
+        try:
+            self.lig_burial_mask[self.lig_batch_indices == batch_idx] = burial_mask
+        except:
+            self.lig_burial_mask = torch.zeros((self.lig_coords.shape[0],), dtype=torch.bool, device=self.lig_coords.device)
 
         assert self.lig_burial_mask.shape[0] == self.lig_coords.shape[0], "Mismatched shapes for burial mask and ligand coordinates."
     
