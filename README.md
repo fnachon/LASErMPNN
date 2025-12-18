@@ -15,7 +15,6 @@
 
 ### TODO:
 - [ ] Add pdb code dataset split text files to avoid digging into code.
-- [ ] Add LigandMPNN architecture retraining code.
 
 
 ### Environment Setup
