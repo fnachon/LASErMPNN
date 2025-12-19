@@ -39,4 +39,6 @@ There are 2 different splits reported:
 - One is our reconstruction of the LigandMPNN training data, we did not reproduce the validation/test data since the model was already hyperparameter tuned.
 We provide two `.json` files corresponding to the coarse 30% sequence identity clusters and finer 70% sequence identity subclusters which were each sampled once per cluster/subcluster respectively during the training process.
 
-- The second split is our streptavidin held-out split where all streptavidin and related proteins were placed in the validation set such that the train set should be free of contamination. We provide four `.json` files corresponding to the train/validation data for both the 30% sequence identity clusters and 70% sequence identity subclusters for each set. We don't report a validation set since the trained models were validated with de novo design.
+- The second split is our streptavidin held-out split where all streptavidin and related proteins were placed in the validation set such that the train set should be free of contamination. We provide four `.json` files corresponding to the train/validation data for both the 30% sequence identity clusters and 70% sequence identity subclusters for each set. 
+
+The 6w70 structures and monomeric streptavidin fold were used as a small validation set in addition to the de novo design of novel binders.
