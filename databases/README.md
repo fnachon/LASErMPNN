@@ -7,7 +7,7 @@
 - `./pdb_dataset` contains our protonated processed PDB database stored in a python [shelve](https://docs.python.org/3/library/shelve.html) object. See `./utils/pdb_dataset.py` for how to work with the data. 
 
 
-### Train / Test Split Info:
+### Train / Test Splits:
 
 > [!IMPORTANT]
 > The chain and segment IDs have been remapped in the preprocessed LASErMPNN training dataset sequentially starting with A, B, C... to ensure large proteins in the dataset could be passed through Reduce.
