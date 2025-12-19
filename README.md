@@ -179,3 +179,10 @@ Training the Ligand Encoder module can be done with much lower memory and a sing
 see https://www.github.com/polizzilab/NISE for a NISE protocol implementation using Boltz-1x/2x.
 
 
+### Re-training LigandMPNN
+
+The code for retraining the LigandMPNN architecture on the streptavidin heldout split and reconstruction of the ligandmpnn training dataset are available as files suffixed with `_ligandmpnn`.
+We did not reimplement the LigandMPNN Sidechain Packer (only the sequence generation model) so the `.pdb` formatted outputs from sequence design with a retrained lignadmpnn model will have sidechains with all dihedral angles fixed to values of 0.0.
+It may be more useful to run any retrained ligandmpnn models using the `--output_fasta_only` flags since the predicted sidechains contain no useful information other than for threading the sequence onto the input backbone.
+
+To retrain the LigandMPNN model in the same way we tested it in the paper, follow the instructions above for Training LASErMPNN and see `train_ligandmpnn.py` for more information.
