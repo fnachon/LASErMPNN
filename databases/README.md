@@ -41,4 +41,4 @@ We provide two `.json` files corresponding to the coarse 30% sequence identity c
 
 - The second split is our streptavidin held-out split where all streptavidin and related proteins were placed in the validation set such that the train set should be free of contamination. We provide four `.json` files corresponding to the train/validation data for both the 30% sequence identity clusters and 70% sequence identity subclusters for each set. 
 
-The 6w70 structures and monomeric streptavidin fold were used as a small validation set in addition to the de novo design of novel binders.
+The PDB Codes 6W70 (previously designed de novo drug binder), 8TN6 (previously designed de novo drug binder) and 4JNJ (monomeric streptavidin) were used as a small validation set to assess de novo design capabilities.
