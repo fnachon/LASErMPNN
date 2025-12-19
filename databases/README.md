@@ -11,7 +11,26 @@
 
 > [!IMPORTANT]
 > The chain and segment IDs have been remapped in the preprocessed LASErMPNN training dataset sequentially starting with A, B, C... to ensure large proteins in the dataset could be passed through Reduce.
-> The full training dataset with remapped chains in PDB format [is uploaded to Zenodo here](www.google.com).
+> The full training dataset with remapped chains in PDB format is uploaded to Zenodo in two chunks [Chunk 1](https://zenodo.org/records/17990180) and [Chunk 2](https://zenodo.org/records/17990253) which can be reconstructed into a single `.zip` file following the instructions in the zenodo description which are copied here below:
+
+```text
+Chunk 1/2 of dataset of PDB files processed from the PDB, remapped chain and segment IDs correspond to those reported in the dataset split. Proton positions placed by REDUCE.
+
+Chunk 1 is 10.5281/zenodo.17990180
+Chunk 2 is 10.5281/zenodo.17990253
+
+To reassemble the chunks into the full zip file, cat them together with the following command:
+
+cat reduce_filtered_pdb_bioasmb_two_letter_bug_fixed.zip.part.aa \
+    reduce_filtered_pdb_bioasmb_two_letter_bug_fixed.zip.part.ab \
+  > reconstructed.zip
+ 
+The output of md5sum reconstructed.zip should be c9418cb9368c8068a6053feebbff5fda
+The cat command assembles the reconstructed.zip file which is around 50 GB in total.
+The full uncompressed dataset is around 210 GB and can be produced by unzipping the reconstructed.zip file.
+```
+
+
 
 The LASErMPNN train/test splits are stored in `json` files zipped in `./dataset_split_info.zip`.
 
