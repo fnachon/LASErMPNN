@@ -20,14 +20,16 @@ from copy import deepcopy
 import matplotlib.pyplot as plt
 from collections import defaultdict
 
+import torch
+torch.set_num_threads(4)
+
 from LASErMPNN.utils.model import LASErMPNN
 from LASErMPNN.utils.optimizer import get_std_opt, NoamOpt
 from LASErMPNN.utils.helper_functions import compute_sidechain_rmsd
 from LASErMPNN.utils.build_rotamers import compute_chi_angle_accuracies
 from LASErMPNN.utils.constants import aa_short_to_idx, aa_idx_to_short, aa_to_chi_angle_atom_map
-from LASErMPNN.utils.pdb_dataset import UnclusteredProteinChainDataset, LigandMPNNDatasetSampler, collate_sampler_data, BatchData, invert_dict, chain_list_to_protein_chain_dict
+from LASErMPNN.utils.pdb_dataset import UnclusteredProteinChainDataset, ClusteredDatasetSampler, collate_sampler_data, BatchData, invert_dict, chain_list_to_protein_chain_dict
 
-import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torch_scatter import scatter_mean, scatter
@@ -162,14 +164,17 @@ def prepare_dataloaders(rank, world_size, params, epoch_num, dataset, collate_fn
 
     # The sampler is responsible for shuffling the dataset according to the current epoch in a way that should be deterministic between workers.
     # The DistributedSamplerWrapper divides current samples between workers.
-    test_sampler = LigandMPNNDatasetSampler(dataset, params, is_train=False, seed=seed, max_protein_length=params['max_protein_size'], soluble_proteins_only=params['soluble_proteins_only'])
+    # test_sampler = LigandMPNNDatasetSampler(dataset, params, is_train=False, seed=seed, max_protein_length=params['max_protein_size'], soluble_proteins_only=params['soluble_proteins_only'])
+    test_sampler = ClusteredDatasetSampler(dataset, params, is_test_dataset_sampler=True, seed=seed)
     test_dist_sampler = DistributedSamplerWrapper(test_sampler, num_replicas=world_size, rank=rank, shuffle=False)
+    train_sampler = ClusteredDatasetSampler(dataset, params, is_test_dataset_sampler=False, seed=seed)
     test_dataloader = DataLoader(dataset, batch_sampler=test_dist_sampler, collate_fn=collate_fn)
 
     if test_only:
         return test_dataloader
 
-    train_sampler = LigandMPNNDatasetSampler(dataset, params, is_train=True, seed=seed, max_protein_length=params['max_protein_size'], soluble_proteins_only=params['soluble_proteins_only'])
+    # train_sampler = LigandMPNNDatasetSampler(dataset, params, is_train=True, seed=seed, max_protein_length=params['max_protein_size'], soluble_proteins_only=params['soluble_proteins_only'])
+    train_sampler = ClusteredDatasetSampler(dataset, params, is_test_dataset_sampler=False, seed=seed)
     train_dist_sampler = DistributedSamplerWrapper(train_sampler, num_replicas=world_size, rank=rank, shuffle=False)
     train_dataloader = DataLoader(dataset, batch_sampler=train_dist_sampler, collate_fn=collate_fn) 
 
@@ -705,7 +710,7 @@ if __name__ == "__main__":
         }
     }
 
-    # ALTERNATE_DATABASE_PATH = Path('/nfs/polizzi/bfry/programs/LASErMPNN-Public/')
+    ALTERNATE_DATABASE_PATH = Path('/nfs/polizzi/bfry/programs/LASErMPNN/')
     params = {
         'debug': (debug := False),
         'use_wandb': True and not debug,
@@ -727,19 +732,19 @@ if __name__ == "__main__":
         'devices': VISIBLE_DEVICES,
 
         'checkpoint_to_resume_from': None,
-        'output_weights_checkpoint_prefix': CURR_FILE_DIR_PATH / 'model_weights/training_checkpoint_lmpnn_split_soluble',
+        'output_weights_checkpoint_prefix': CURR_FILE_DIR_PATH / 'model_weights/training_checkpoint_lasermpnn_strepsplit',
         
         'pretrained_ligand_encoder_weights': CURR_FILE_DIR_PATH / 'model_weights/pretrained_ligand_encoder_weights.pt',
         # 'pretrained_ligand_encoder_weights': default_ligand_encoder_params, # Uncomment to disable pretrained ligand encoder.
 
-        'raw_dataset_path': CURR_FILE_DIR_PATH / 'databases/pdb_dataset/dataset_shelve',
-        'metadata_dataset_path': CURR_FILE_DIR_PATH / 'databases/pdb_dataset/metadata_shelve',
-        'clustering_dataframe_path': CURR_FILE_DIR_PATH / 'databases/pdb_dataset/cluster_representative_add_bromo.pkl',
-        'subcluster_pickle_path': CURR_FILE_DIR_PATH / 'databases/pdb_dataset/subcluster_pickle.pkl',
-        # 'raw_dataset_path': ALTERNATE_DATABASE_PATH / 'databases/pdb_dataset/dataset_shelve',
-        # 'metadata_dataset_path': ALTERNATE_DATABASE_PATH / 'databases/pdb_dataset/metadata_shelve',
-        # 'clustering_dataframe_path': ALTERNATE_DATABASE_PATH / 'databases/pdb_dataset/cluster_representative_add_bromo.pkl',
-        # 'subcluster_pickle_path': ALTERNATE_DATABASE_PATH / 'databases/pdb_dataset/subcluster_pickle.pkl',
+        # 'raw_dataset_path': CURR_FILE_DIR_PATH / 'databases/pdb_dataset/dataset_shelve',
+        # 'metadata_dataset_path': CURR_FILE_DIR_PATH / 'databases/pdb_dataset/metadata_shelve',
+        # 'clustering_dataframe_path': CURR_FILE_DIR_PATH / 'databases/pdb_dataset/cluster_representative_add_bromo.pkl',
+        # 'subcluster_pickle_path': CURR_FILE_DIR_PATH / 'databases/pdb_dataset/subcluster_pickle.pkl',
+        'raw_dataset_path': ALTERNATE_DATABASE_PATH / 'databases/pdb_dataset/dataset_shelve',
+        'metadata_dataset_path': ALTERNATE_DATABASE_PATH / 'databases/pdb_dataset/metadata_shelve',
+        'clustering_dataframe_path': ALTERNATE_DATABASE_PATH / 'databases/pdb_dataset/cluster_representative_add_bromo.pkl',
+        'subcluster_pickle_path': ALTERNATE_DATABASE_PATH / 'databases/pdb_dataset/subcluster_pickle.pkl',
 
         'num_epochs': 500,
         'batch_size': 6_000, # Practically, this is the batch size per GPU... so 5_000 * num_devices = total batch size.

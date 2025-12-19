@@ -13,10 +13,6 @@
 > Please make sure your ligand has the appropriate hydrogens (in the expected protonation state) attached when running the model or you may encounter unexpected behavior.
 > For an example of how to adjust protonation from a smiles string, check out the script `./protonate_and_add_conect_records.py` from the [NISE repo](https://github.com/polizzilab/NISE/blob/main/protonate_and_add_conect_records.py)
 
-### TODO:
-- [ ] Add pdb code dataset split text files to avoid digging into code.
-- [ ] Add LigandMPNN architecture retraining code.
-
 
 ### Environment Setup
 
