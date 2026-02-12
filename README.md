@@ -150,9 +150,9 @@ options:
   --budget_residue_sele_string BUDGET_RESIDUE_SELE_STRING
                         A ProDy-style selection string to constrain the residues to sample ALA and GLY residues in. Can be used to override the automatic selection performed by the --constrain_ala_gly_sampling_to_exposed_non_secondary_structure flag.
   --ala_budget ALA_BUDGET
-                        Maximum number of ALA residues that can be sampled in exposed non-secondary structured residues. Only used if --constrain_ala_gly_sampling_to_exposed_non_secondary_structure is set or --budget_residue_sele_string is set.
+                        Maximum number of ALA residues that can be sampled in exposed non-secondary structured residues. Only used if --constrain_ala_gly_sampling_to_exposed_non_secondary_structure is set or --budget_residue_sele_string is set. Default is 4.
   --gly_budget GLY_BUDGET
-                        Maximum number of GLY residues that can be sampled in exposed non-secondary structured residues. Only used if --constrain_ala_gly_sampling_to_exposed_non_secondary_structure is set or --budget_residue_sele_string is set.
+                        Maximum number of GLY residues that can be sampled in exposed non-secondary structured residues. Only used if --constrain_ala_gly_sampling_to_exposed_non_secondary_structure is set or --budget_residue_sele_string is set. Default is 0.
   --noncanonical_aa_ligand
                         Featurize a noncanonical amino acid as a ligand.
   --repack_all          Repack all residues, even those with chain_mask=1.
