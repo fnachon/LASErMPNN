@@ -31,3 +31,4 @@ dependencies:
   - tqdm
   - rdkit-to-params
   - pdbecif
+  - pydssp
