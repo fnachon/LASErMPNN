@@ -412,6 +412,9 @@ def test(rank, test_dataloader, model, params):
 
     return output
 
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
 def train(rank, world_size, params):
 
     starting_epoch_idx = 0
@@ -447,6 +450,9 @@ def train(rank, world_size, params):
     model = LASErMPNN(ligand_encoder_params=ligand_enc_params, **params['model_params']).to(rank)
     params['model_params']['graph_structure']['lig_lig_knn_graph_k'] = ligand_enc_params['model_params']['graph_structure']['lig_lig_knn_graph_k']
     params['model_params']['lig_lig_edge_rbf_params'] = ligand_enc_params['model_params']['lig_lig_edge_rbf_params']
+
+    if rank == 0:
+        print('Num Model Params', count_parameters(model))
 
     # Load pretrained ligand encoder weights.
     fix_ligand_encoder_weights(model, checkpoint_state_dict, params['fix_ligand_encoder_weights'])
@@ -707,7 +713,7 @@ if __name__ == "__main__":
 
     # ALTERNATE_DATABASE_PATH = Path('/nfs/polizzi/bfry/programs/LASErMPNN-Public/')
     params = {
-        'debug': (debug := False),
+        'debug': (debug := True),
         'use_wandb': True and not debug,
         'use_data_augmentations': (augment := True),
         'random_seed': None if not debug else 42,

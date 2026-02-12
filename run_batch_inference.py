@@ -192,6 +192,7 @@ def run_inference(
     make_subdir = False
     if input_pdb_directory.is_dir():
         all_input_files = [input_pdb_directory / x for x in input_pdb_directory.glob('*.pdb')]
+        all_input_files += [input_pdb_directory / x for x in input_pdb_directory.glob('*.cif')]
         make_subdir = True
     elif input_pdb_directory.exists() and ('.pdb' in input_pdb_directory.name): # Could be .pdb or .pdb.gz
         all_input_files = [input_pdb_directory]

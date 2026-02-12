@@ -340,6 +340,9 @@ def test(rank, test_dataloader, model, params):
 
     return output
 
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
 def train(rank, world_size, params):
 
     starting_epoch_idx = 0
@@ -358,6 +361,9 @@ def train(rank, world_size, params):
     # Initialize model and optimizer.
     device = torch.device(f'cuda:{rank}')
     model = LigandMPNN(**params['model_params']).to(rank)
+
+    if rank == 0:
+        print('Num params:', count_parameters(model))
 
     if checkpoint_dict is not None:
         model.load_state_dict(checkpoint_dict['model_state_dict'], strict=True)
