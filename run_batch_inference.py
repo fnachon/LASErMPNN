@@ -12,12 +12,14 @@ from typing import *
 from pathlib import Path
 
 import torch
+import pydssp
 import numpy as np
 import prody as pr
 from tqdm import tqdm
 
 from LASErMPNN.utils.model import Sampled_Output
 from LASErMPNN.utils.pdb_dataset import BatchData
+from LASErMPNN.utils.burial_calc import compute_fast_ligand_burial_mask
 from LASErMPNN.run_inference import get_protein_hierview, load_model_from_parameter_dict, sample_model, output_protein_structure, output_ligand_structure, ProteinComplexData
 
 CURR_FILE_DIR_PATH = Path(__file__).parent
@@ -41,6 +43,43 @@ def parse_int_chunks_or_string(s):
             return s
     except:
         return s # Just in case.
+
+
+def compute_constrained_ala_gly_residues(protein: pr.AtomGroup) -> str:
+    """
+    Generates a ProDy-style selection string of residues that are on the surface of the protein and have secondary structure that we might want to restruct sampling of ALA and GLY residues within. 
+    Oversampling of ALA and GLY residues in these regions is a weird pathology of the model, but constraining the sampling generally helps keep the designs more realistic.
+    """
+    # Parse out the backbone coordinates and shape into pydssp input format.
+    ns = protein.select('protein and name N').getCoords()[:, None, :]
+    cas_ = protein.select('protein and name CA').getCoords()
+    cas = cas_[:, None, :]
+    cs = protein.select('protein and name C').getCoords()[:, None, :]
+    os = protein.select('protein and name O').getCoords()[:, None, :]
+    coords = np.concatenate([ns, cas, cs, os], axis=-2)[None, :]
+    # Input to PyDSSP is (B, N, 4, 3)
+    dssp_output = pydssp.assign(coords)[0]
+    ss_mask = np.array([(str(x) in ('H', 'E')) for x in dssp_output])
+    
+    # Compute residue burial mask.
+    cbs = protein.select('protein and (resname GLY and name CA) or ((not resname GLY) and name CB)').getCoords()
+    burial_mask = (~compute_fast_ligand_burial_mask(cas_, cbs, num_rays=100)).numpy()
+
+    # Compute mask of atoms that are both secondary structured and not buried.
+    ss_and_exposed_mask = ss_mask & (~burial_mask)
+
+    # Get prody style residue indices of residues that are both secondary structured and not buried.
+    selected_constrained_residues = []
+    idx = 0
+    for residue in protein.iterResidues():
+        if all(x in residue.getNames() for x in ('N', 'CA', 'C', 'O')):
+            if ss_and_exposed_mask[idx]:
+                selected_constrained_residues.append(residue.ca.getResnums()[0])
+            idx += 1
+    
+    # Constraint string for sequence designer (probably only LASErMPNN can use this).
+    constraint_string = 'resnum ' + ' '.join([f'{x}' for x in selected_constrained_residues])
+    return constraint_string
 
 
 def collate_batch_data(input_list: List[BatchData]) -> BatchData:
@@ -88,6 +127,7 @@ def _run_inference(
     ignore_chain_mask_zeros: bool = False, disabled_residues_list: List[str] = ['X'], bb_noise: float = 0.0,
     fix_beta: bool = False, repack_only_input_sequence: bool = False, 
     first_shell_sequence_temp: Optional[float] = None, ignore_ligand: bool = False, 
+    constrain_ala_gly_sampling_to_exposed_non_secondary_structure: bool = False,
     budget_residue_sele_string: str='', ala_budget: Optional[int]=None, gly_budget: Optional[int]=None,
     noncanonical_aa_ligand: bool = False, fs_calc_ca_distance: float = 10.0, 
     fs_calc_burial_hull_alpha_value: float = 9.0, fs_no_calc_burial: bool = False,
@@ -120,14 +160,21 @@ def _run_inference(
         )
 
         budget_residue_mask = None
-        if budget_residue_sele_string != '' and budget_residue_sele_string is not None:
+        budget_string_is_set = budget_residue_sele_string != '' and budget_residue_sele_string is not None
+        if budget_string_is_set or constrain_ala_gly_sampling_to_exposed_non_secondary_structure:
+
+            # If the budget string is not set, compute the constrained ala gly residues.
+            if not budget_string_is_set:
+                budget_residue_sele_string = compute_constrained_ala_gly_residues(protein_hv.getAtoms())
+
+            # Compute the budget residue mask.
             reference_mask_res_indices = protein_hv.getAtoms().select(f"protein and name CA").getResindices()
             mask_sele_indices = protein_hv.getAtoms().select(f"(same residue as ({budget_residue_sele_string})) and name CA").getResindices()
             budget_residue_mask = torch.from_numpy(
                 np.isin(reference_mask_res_indices, mask_sele_indices)
             ).to(model.device).unsqueeze(0).expand(designs_per_input, -1).flatten()
             budget_residue_masks.append(budget_residue_mask)
-
+        
         batch_data = data.output_batch_data(fix_beta=fix_beta, num_copies=designs_per_input)
 
         if ignore_ligand:
@@ -173,6 +220,7 @@ def run_inference(
         verbose=True, seq_min_p=0.0, chi_min_p=0.0, output_idx_offset=0, disabled_residues='', 
         fix_beta=False, repack_only_input_sequence=False, 
         first_shell_sequence_temp=None, ignore_ligand=False, noncanonical_aa_ligand=False,
+        constrain_ala_gly_sampling_to_exposed_non_secondary_structure: bool = False,
         budget_residue_sele_string: str='', ala_budget: Optional[int]=None, gly_budget: Optional[int]=None,
         fs_calc_ca_distance: float = 10.0, fs_calc_burial_hull_alpha_value: float = 9.0,
         fs_no_calc_burial: bool = False, disable_charged_fs: bool = False, repack_all: bool = False,
@@ -191,8 +239,8 @@ def run_inference(
 
     make_subdir = False
     if input_pdb_directory.is_dir():
-        all_input_files = [input_pdb_directory / x for x in input_pdb_directory.glob('*.pdb')]
-        all_input_files += [input_pdb_directory / x for x in input_pdb_directory.glob('*.cif')]
+        all_input_files = list(input_pdb_directory.glob('*.pdb'))
+        all_input_files.extend(list(input_pdb_directory.glob('*.cif')))
         make_subdir = True
     elif input_pdb_directory.exists() and ('.pdb' in input_pdb_directory.name): # Could be .pdb or .pdb.gz
         all_input_files = [input_pdb_directory]
@@ -246,6 +294,7 @@ def run_inference(
                 disabled_residues_list=disabled_residues_list, disable_pbar=not verbose,
                 fix_beta=fix_beta, repack_only_input_sequence=repack_only_input_sequence,
                 first_shell_sequence_temp=first_shell_sequence_temp, ignore_ligand=ignore_ligand,
+                constrain_ala_gly_sampling_to_exposed_non_secondary_structure=constrain_ala_gly_sampling_to_exposed_non_secondary_structure,
                 budget_residue_sele_string=budget_residue_sele_string, 
                 ala_budget=ala_budget, gly_budget=gly_budget,
                 noncanonical_aa_ligand=noncanonical_aa_ligand,
@@ -316,9 +365,10 @@ def parse_args(default_weights_path: os.PathLike):
     parser.add_argument('--fix_beta', action='store_true', help='If B-factors are set to 1, fixes the residue and rotamer, if not, designs that position.')
     parser.add_argument('--repack_only_input_sequence', action='store_true', help='Repacks the input sequence without changing the sequence.')
     parser.add_argument('--ignore_ligand', action='store_true', help='Ignore ligand in sampling.')
-    parser.add_argument('--budget_residue_sele_string', default=None, help='')
-    parser.add_argument('--ala_budget', type=int, default=4, help='')
-    parser.add_argument('--gly_budget', type=int, default=0, help='')
+    parser.add_argument('-c', '--constrain_ala_gly_sampling_to_exposed_non_secondary_structure', action='store_true', help='If set, constrains number of ALA and GLY residues that can be sampled in exposed non-secondary structured residues. The max number of ALA and GLY residues is set by the --ala_budget and --gly_budget arguments.')
+    parser.add_argument('--budget_residue_sele_string', default=None, help='A ProDy-style selection string to constrain the residues to sample ALA and GLY residues in. Can be used to override the automatic selection performed by the --constrain_ala_gly_sampling_to_exposed_non_secondary_structure flag.')
+    parser.add_argument('--ala_budget', type=int, default=4, help='Maximum number of ALA residues that can be sampled in exposed non-secondary structured residues. Only used if --constrain_ala_gly_sampling_to_exposed_non_secondary_structure is set or --budget_residue_sele_string is set.')
+    parser.add_argument('--gly_budget', type=int, default=0, help='Maximum number of GLY residues that can be sampled in exposed non-secondary structured residues. Only used if --constrain_ala_gly_sampling_to_exposed_non_secondary_structure is set or --budget_residue_sele_string is set.')
     parser.add_argument('--noncanonical_aa_ligand', action='store_true', help='Featurize a noncanonical amino acid as a ligand.')
     parser.add_argument('--repack_all', action='store_true', help='Repack all residues, even those with chain_mask=1.')
 
