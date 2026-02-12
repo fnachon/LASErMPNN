@@ -93,12 +93,11 @@ def compute_constrained_ala_gly_residues(protein: pr.AtomGroup) -> str:
     
     # Compute residue burial mask.
     burial_test_atoms = get_residue_burial_test_atoms(protein)
-    burial_mask = (~compute_fast_ligand_burial_mask(cas_, burial_test_atoms, num_rays=100)).numpy()
+    burial_mask = (~compute_fast_ligand_burial_mask(cas_, burial_test_atoms, num_rays=10)).numpy()
 
     # Compute mask of atoms that are both secondary structured and not buried.
     assert burial_mask.shape[0] == ss_mask.shape[0], "Burial mask and secondary structure mask must have the same number of residues."
-    ss_and_exposed_mask = ss_mask & (~burial_mask)
-
+    ss_and_exposed_mask = ss_mask & burial_mask
 
     # Get prody style residue indices of residues that are both secondary structured and not buried.
     selected_constrained_residues = []
