@@ -103,8 +103,8 @@ python -m LASErMPNN.run_batch_inference -h
 This script is useful to generate multiple designs for one or multiple inputs. Creates an output directory with subdirectories for each input file (unless run with a single input file).
 
 ```text
-usage: run_batch_inference.py [-h] [--designs_per_batch DESIGNS_PER_BATCH] [--inputs_processed_simultaneously INPUTS_PROCESSED_SIMULTANEOUSLY] [--model_weights_path MODEL_WEIGHTS_PATH] [--sequence_temp SEQUENCE_TEMP] [--first_shell_sequence_temp FIRST_SHELL_SEQUENCE_TEMP] [--chi_temp CHI_TEMP]
-                              [--chi_min_p CHI_MIN_P] [--seq_min_p SEQ_MIN_P] [--device INFERENCE_DEVICE] [--use_water] [--silent] [--ignore_key_mismatch] [--disabled_residues DISABLED_RESIDUES] [--fix_beta] [--repack_only_input_sequence] [--ignore_ligand]
+usage: run_batch_inference.py [-h] [--designs_per_batch DESIGNS_PER_BATCH] [--inputs_processed_simultaneously INPUTS_PROCESSED_SIMULTANEOUSLY] [--model_weights_path MODEL_WEIGHTS_PATH] [--sequence_temp SEQUENCE_TEMP] [--first_shell_sequence_temp FIRST_SHELL_SEQUENCE_TEMP]
+                              [--chi_temp CHI_TEMP] [--chi_min_p CHI_MIN_P] [--seq_min_p SEQ_MIN_P] [--device INFERENCE_DEVICE] [--use_water] [--silent] [--ignore_key_mismatch] [--disabled_residues DISABLED_RESIDUES] [--fix_beta] [--repack_only_input_sequence] [--ignore_ligand] [-c]
                               [--budget_residue_sele_string BUDGET_RESIDUE_SELE_STRING] [--ala_budget ALA_BUDGET] [--gly_budget GLY_BUDGET] [--noncanonical_aa_ligand] [--repack_all] [--output_fasta] [--output_fasta_only] [--fs_calc_ca_distance FS_CALC_CA_DISTANCE]
                               [--fs_calc_burial_hull_alpha_value FS_CALC_BURIAL_HULL_ALPHA_VALUE] [--fs_no_calc_burial] [--disable_charged_fs]
                               input_pdb_directory output_pdb_directory designs_per_input
@@ -145,9 +145,14 @@ options:
   --repack_only_input_sequence
                         Repacks the input sequence without changing the sequence.
   --ignore_ligand       Ignore ligand in sampling.
+  -c, --constrain_ala_gly_sampling_to_exposed_non_secondary_structure
+                        If set, constrains number of ALA and GLY residues that can be sampled in exposed non-secondary structured residues. The max number of ALA and GLY residues is set by the --ala_budget and --gly_budget arguments.
   --budget_residue_sele_string BUDGET_RESIDUE_SELE_STRING
+                        A ProDy-style selection string to constrain the residues to sample ALA and GLY residues in. Can be used to override the automatic selection performed by the --constrain_ala_gly_sampling_to_exposed_non_secondary_structure flag.
   --ala_budget ALA_BUDGET
+                        Maximum number of ALA residues that can be sampled in exposed non-secondary structured residues. Only used if --constrain_ala_gly_sampling_to_exposed_non_secondary_structure is set or --budget_residue_sele_string is set.
   --gly_budget GLY_BUDGET
+                        Maximum number of GLY residues that can be sampled in exposed non-secondary structured residues. Only used if --constrain_ala_gly_sampling_to_exposed_non_secondary_structure is set or --budget_residue_sele_string is set.
   --noncanonical_aa_ligand
                         Featurize a noncanonical amino acid as a ligand.
   --repack_all          Repack all residues, even those with chain_mask=1.
