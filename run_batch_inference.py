@@ -45,6 +45,36 @@ def parse_int_chunks_or_string(s):
         return s # Just in case.
 
 
+def get_residue_burial_test_atoms(protein):
+    """
+    Return an (N, 3) array of coordinates, one atom per residue, with:
+      - GLY residues -> CA
+      - non-GLY residues -> CB if present, otherwise CA (e.g. trimmed sidechain)
+
+    Residues are processed in order, so the output order matches residue order.
+    """
+    atoms = []
+
+    for res in protein.iterResidues():
+        rname = res.getResname()
+
+        if rname == 'GLY':
+            sel = res.select('name CA')
+        else:
+            sel = res.select('name CB')
+            if sel is None or sel.numAtoms() == 0:
+                # sidechain trimmed: fall back to CA
+                sel = res.select('name CA')
+
+        if sel is not None and sel.numAtoms() > 0:
+            atoms.append(sel.getCoords())
+
+    if not atoms:
+        return np.zeros((0, 3), dtype=float)
+
+    return np.vstack(atoms)
+
+
 def compute_constrained_ala_gly_residues(protein: pr.AtomGroup) -> str:
     """
     Generates a ProDy-style selection string of residues that are on the surface of the protein and have secondary structure that we might want to restruct sampling of ALA and GLY residues within. 
@@ -62,11 +92,13 @@ def compute_constrained_ala_gly_residues(protein: pr.AtomGroup) -> str:
     ss_mask = np.array([(str(x) in ('H', 'E')) for x in dssp_output])
     
     # Compute residue burial mask.
-    cbs = protein.select('protein and (resname GLY and name CA) or ((not resname GLY) and name CB)').getCoords()
-    burial_mask = (~compute_fast_ligand_burial_mask(cas_, cbs, num_rays=100)).numpy()
+    burial_test_atoms = get_residue_burial_test_atoms(protein)
+    burial_mask = (~compute_fast_ligand_burial_mask(cas_, burial_test_atoms, num_rays=100)).numpy()
 
     # Compute mask of atoms that are both secondary structured and not buried.
+    assert burial_mask.shape[0] == ss_mask.shape[0], "Burial mask and secondary structure mask must have the same number of residues."
     ss_and_exposed_mask = ss_mask & (~burial_mask)
+
 
     # Get prody style residue indices of residues that are both secondary structured and not buried.
     selected_constrained_residues = []
