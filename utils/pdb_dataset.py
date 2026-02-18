@@ -20,10 +20,6 @@ from .ligand_featurization import LigandFeaturizer
 from .hbond_network import RigorousHydrogenBondNetworkDetector, compute_hbonding_connected_component
 from .helper_functions import create_prody_protein_from_coordinate_matrix
 from dataclasses import dataclass
-try:
-    from pykeops.torch import LazyTensor
-except:
-    pass
 
 
 
@@ -1662,6 +1658,11 @@ def compute_kmeans_clusters(x, k, Niter=20):
     
     NOTE: could be precomputed but allows us to vary K for now.
     """
+    try:
+        from pykeops.torch import LazyTensor
+    except Exception as e:
+        print(e)
+        raise ImportError("pykeops is not installed or not installed properly. Please install it using `pip install pykeops`.")
 
     if k < 1:
         raise ValueError("Need at least 1 cluster.")
