@@ -20,7 +20,11 @@ from .ligand_featurization import LigandFeaturizer
 from .hbond_network import RigorousHydrogenBondNetworkDetector, compute_hbonding_connected_component
 from .helper_functions import create_prody_protein_from_coordinate_matrix
 from dataclasses import dataclass
-from pykeops.torch import LazyTensor
+try:
+    from pykeops.torch import LazyTensor
+except:
+    pass
+
 
 
 @dataclass
@@ -255,7 +259,10 @@ class BatchData():
             if num_clusters < 2:
                 clusters = torch.zeros((curr_ca_coords.shape[0],), dtype=torch.long, device=self.device)
             else:
-                clusters, _ = compute_kmeans_clusters(curr_ca_coords.contiguous(), k=num_clusters)
+                try:
+                    clusters, _ = compute_kmeans_clusters(curr_ca_coords.contiguous(), k=num_clusters)
+                except:
+                    clusters = torch.zeros((curr_ca_coords.shape[0],), dtype=torch.long, device=self.device)
 
             first_shell_contacting_clusters = torch.unique(clusters[valid_first_shell_mask[valid_residues_curr_complex_mask]])
 
