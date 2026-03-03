@@ -20,7 +20,7 @@ from tqdm import tqdm
 from LASErMPNN.utils.model import Sampled_Output
 from LASErMPNN.utils.pdb_dataset import BatchData
 from LASErMPNN.utils.burial_calc import compute_fast_ligand_burial_mask
-from LASErMPNN.run_inference import get_protein_hierview, load_model_from_parameter_dict, sample_model, output_protein_structure, output_ligand_structure, ProteinComplexData
+from LASErMPNN.run_inference import get_protein_hierview, load_model_from_parameter_dict, sample_model, output_protein_structure, output_ligand_structure, is_amino_acid, ProteinComplexData
 
 CURR_FILE_DIR_PATH = Path(__file__).parent
 
@@ -45,71 +45,56 @@ def parse_int_chunks_or_string(s):
         return s # Just in case.
 
 
-def get_residue_burial_test_atoms(protein):
-    """
-    Return an (N, 3) array of coordinates, one atom per residue, with:
-      - GLY residues -> CA
-      - non-GLY residues -> CB if present, otherwise CA (e.g. trimmed sidechain)
-
-    Residues are processed in order, so the output order matches residue order.
-    """
-    atoms = []
-
-    for res in protein.iterResidues():
-        rname = res.getResname()
-
-        if rname == 'GLY':
-            sel = res.select('name CA')
-        else:
-            sel = res.select('name CB')
-            if sel is None or sel.numAtoms() == 0:
-                # sidechain trimmed: fall back to CA
-                sel = res.select('name CA')
-
-        if sel is not None and sel.numAtoms() > 0:
-            atoms.append(sel.getCoords())
-
-    if not atoms:
-        return np.zeros((0, 3), dtype=float)
-
-    return np.vstack(atoms)
-
-
 def compute_constrained_ala_gly_residues(protein: pr.AtomGroup) -> str:
     """
     Generates a ProDy-style selection string of residues that are on the surface of the protein and have secondary structure that we might want to restruct sampling of ALA and GLY residues within. 
     Oversampling of ALA and GLY residues in these regions is a weird pathology of the model, but constraining the sampling generally helps keep the designs more realistic.
     """
-    # Parse out the backbone coordinates and shape into pydssp input format.
-    ns = protein.select('protein and name N').getCoords()[:, None, :]
-    cas_ = protein.select('protein and name CA').getCoords()
-    cas = cas_[:, None, :]
-    cs = protein.select('protein and name C').getCoords()[:, None, :]
-    os = protein.select('protein and name O').getCoords()[:, None, :]
-    coords = np.concatenate([ns, cas, cs, os], axis=-2)[None, :]
-    # Input to PyDSSP is (B, N, 4, 3)
-    dssp_output = pydssp.assign(coords)[0]
-    ss_mask = np.array([(str(x) in ('H', 'E')) for x in dssp_output])
-    
-    # Compute residue burial mask.
-    burial_test_atoms = get_residue_burial_test_atoms(protein)
-    burial_mask = (~compute_fast_ligand_burial_mask(cas_, burial_test_atoms, num_rays=10)).numpy()
+    ns = []
+    cas = []
+    cs = []
+    os = []
+    test_atoms = []
+    for residue in protein.iterResidues():
+        if is_amino_acid(residue):
+            residue = residue.copy()
+            ns.append(residue.select('name N').getCoords())
+            cas.append(residue.select('name CA').getCoords())
+            cs.append(residue.select('name C').getCoords())
+            os.append(residue.select('name O').getCoords())
 
-    # Compute mask of atoms that are both secondary structured and not buried.
-    assert burial_mask.shape[0] == ss_mask.shape[0], "Burial mask and secondary structure mask must have the same number of residues."
+            if residue.select('name CB') is not None:
+                test_atoms.append(residue.select('name CB').getCoords())
+            else:
+                test_atoms.append(residue.select('name CA').getCoords())
+
+    # Prepare inputs for pydssp and burial calculation.
+    ns = np.concatenate(ns)
+    cas = np.concatenate(cas)
+    cs = np.concatenate(cs)
+    os = np.concatenate(os)
+    test_atoms = np.concatenate(test_atoms)
+
+    # Compute DSSP labels for backbone atoms, input to PyDSSP is (B, N, 4, 3).
+    pydssp_input = np.stack([ns, cas, cs, os], axis=-2)[None, :]
+    dssp_output = pydssp.assign(pydssp_input)[0]
+    ss_mask = np.array([(str(x) in ('H', 'E')) for x in dssp_output])
+
+    # Compute burial mask for test atoms.
+    burial_mask = (~compute_fast_ligand_burial_mask(cas, test_atoms, num_rays=10)).numpy()
+    assert burial_mask.shape[0] == ss_mask.shape[0], f"Burial mask and secondary structure mask must have the same number of residues. {burial_mask.shape[0]} != {ss_mask.shape[0]}"
     ss_and_exposed_mask = ss_mask & burial_mask
 
-    # Get prody style residue indices of residues that are both secondary structured and not buried.
+    # Turn the masks into a prody style selection string.
     selected_constrained_residues = []
     idx = 0
     for residue in protein.iterResidues():
-        if all(x in residue.getNames() for x in ('N', 'CA', 'C', 'O')):
+        if is_amino_acid(residue):
             if ss_and_exposed_mask[idx]:
                 selected_constrained_residues.append(residue.ca.getResnums()[0])
             idx += 1
-    
-    # Constraint string for sequence designer (probably only LASErMPNN can use this).
     constraint_string = 'resnum ' + ' '.join([f'{x}' for x in selected_constrained_residues])
+
     return constraint_string
 
 
@@ -199,7 +184,7 @@ def _run_inference(
                 budget_residue_sele_string = compute_constrained_ala_gly_residues(protein_hv.getAtoms())
 
             # Compute the budget residue mask.
-            reference_mask_res_indices = protein_hv.getAtoms().select(f"protein and name CA").getResindices()
+            reference_mask_res_indices = protein_hv.getAtoms().select(f"name CA").getResindices()
             mask_sele_indices = protein_hv.getAtoms().select(f"(same residue as ({budget_residue_sele_string})) and name CA").getResindices()
             budget_residue_mask = torch.from_numpy(
                 np.isin(reference_mask_res_indices, mask_sele_indices)

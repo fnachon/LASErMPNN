@@ -450,7 +450,7 @@ def is_amino_acid(res: pr.Residue) -> bool:
     """
     Given a prody residue object, return whether the residue is an amino acid.
     """
-    if res.getResname() in aa_long_to_short:
+    if res.getResname() in aa_long_to_short and all(res.select(f'name {a}') is not None for a in ('N', 'CA', 'C', 'O')):
         return True
     atom_names = set(res.copy().getNames())
     if all(x in atom_names  for x in ['N', 'CA', 'C', 'O']):
