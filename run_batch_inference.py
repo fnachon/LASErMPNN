@@ -292,7 +292,7 @@ def run_inference(
         output_files_chunk = []
         if make_subdir:
             for file in files_chunk:
-                output_subdir_path = output_pdb_directory / file.stem
+                output_subdir_path = output_pdb_directory / (file.stem if '.' not in file.stem else file.stem.split('.')[0])
                 output_subdir_path.mkdir(exist_ok=True, parents=True)
                 output_files_chunk.append(output_subdir_path)
         else:
