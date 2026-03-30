@@ -377,7 +377,7 @@ def parse_args(default_weights_path: os.PathLike):
     parser.add_argument('--use_water', action='store_true', help='Parses water (resname HOH) as part of a ligand.')
     parser.add_argument('--silent', dest='verbose', action='store_false', help='Silences all output except pbar.')
     parser.add_argument('--ignore_key_mismatch', action='store_false', help='Allows mismatched keys in checkpoint statedict')
-    parser.add_argument('--disabled_residues', type=str, default='X', help='Residues to disable in sampling.')
+    parser.add_argument('--disabled_residues', type=str, default='X,C', help='Residues to disable in sampling.')
     parser.add_argument('--fix_beta', action='store_true', help='If B-factors are set to 1, fixes the residue and rotamer, if not, designs that position.')
     parser.add_argument('--repack_only_input_sequence', action='store_true', help='Repacks the input sequence without changing the sequence.')
     parser.add_argument('--ignore_ligand', action='store_true', help='Ignore ligand in sampling.')
