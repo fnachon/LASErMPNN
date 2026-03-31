@@ -747,7 +747,7 @@ class LASErMPNN(nn.Module):
         if budget_residue_mask is None:
             budget_residue_mask = torch.zeros(batch.num_residues, dtype=torch.bool, device=self.device)
 
-        input_chi_angles = batch.chi_angles.nan_to_num()
+        input_chi_angles = batch.chi_angles.clone()
 
         # 1 in chain mask tells us to sample sequence, a 0 tells us to use the input sequence stored in batch.sequence_indices.
         chain_mask = batch.chain_mask.long()
@@ -903,9 +903,13 @@ class LASErMPNN(nn.Module):
                 #   1 in chain mask tells us to sample chi angle, a 0 tells us to use the input chi angle.
                 sampled_angles = torch.remainder(self.rotamer_builder.index_to_degree_bin[chi_sample] + chi_sample_offset + 180, 360) - 180 # type: ignore
                 if not ignore_chain_mask_zeros and not repack_all:
-                    sampled_angles = (curr_chain_mask * input_chi_angles[node_idces, chi_idx]) + ((1 - curr_chain_mask) * sampled_angles)
-                else:
-                    sampled_angles = sampled_angles
+                    nan_mask = ~input_chi_angles[node_idces, chi_idx].isnan()
+
+                    # This is only 1 if we are both trying to fix the identity of the residue and the residue is not NaN
+                    sample_mask = (curr_chain_mask.bool() & nan_mask).long()
+
+                    # Keep sampled angles according to whether sample mask is 1 or 0.
+                    sampled_angles = (sample_mask * input_chi_angles[node_idces, chi_idx].nan_to_num()) + ((1 - sample_mask) * sampled_angles)
 
                 curr_chi_encoding = self.rotamer_builder.compute_binned_degree_basis_function(sampled_angles.unsqueeze(-1)).squeeze(1)
                 chi_prev = torch.cat([chi_prev, curr_chi_encoding], dim=1)
@@ -949,7 +953,7 @@ class LASErMPNN(nn.Module):
         assert batch.lig_pr_edge_index is not None, "Protein-ligand edge index must be specified in batch data."
         assert batch.lig_pr_edge_distance is not None, "Protein-ligand edge distance must be specified in batch data."
 
-        input_chi_angles = batch.chi_angles.nan_to_num()
+        input_chi_angles = batch.chi_angles.clone()
 
         # 1 in chain mask tells us to sample sequence, a 0 tells us to use the input sequence stored in batch.sequence_indices.
         chain_mask = batch.chain_mask.long()
@@ -1102,8 +1106,14 @@ class LASErMPNN(nn.Module):
 
                 # Convert sampled index to angle, then to RBF encoding.
                 #   1 in chain mask tells us to sample chi angle, a 0 tells us to use the input chi angle.
-                sampled_angles = torch.remainder(self.rotamer_builder.index_to_degree_bin[chi_sample] + chi_sample_offset + 180, 360) - 180 # type: ignore
-                sampled_angles = (curr_chain_mask * input_chi_angles[curr_decoded_indices, chi_idx]) + ((1 - curr_chain_mask) * sampled_angles)
+                # sampled_angles = torch.remainder(self.rotamer_builder.index_to_degree_bin[chi_sample] + chi_sample_offset + 180, 360) - 180 # type: ignore
+                # sampled_angles = (curr_chain_mask * input_chi_angles[curr_decoded_indices, chi_idx]) + ((1 - curr_chain_mask) * sampled_angles)
+
+                # This is only 1 if we are both trying to fix the identity of the residue and the residue is not NaN
+                nan_mask = ~input_chi_angles[curr_decoded_indices, chi_idx].isnan()
+                sample_mask = (curr_chain_mask.bool() & nan_mask).long()
+                # Keep sampled angles according to whether sample mask is 1 or 0.
+                sampled_angles = (sample_mask * input_chi_angles[curr_decoded_indices, chi_idx].nan_to_num()) + ((1 - sample_mask) * sampled_angles)
 
                 curr_chi_encoding = self.rotamer_builder.compute_binned_degree_basis_function(sampled_angles.unsqueeze(-1)).squeeze(1)
                 chi_prev = torch.cat([chi_prev, curr_chi_encoding], dim=1)

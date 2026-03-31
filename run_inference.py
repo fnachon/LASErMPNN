@@ -170,7 +170,7 @@ class ProteinComplexData:
         all_gly_protein = get_all_gly_protein(self.prody_protein)
         for idx, segchain in enumerate(all_gly_protein.getHierView()):
             for residue in segchain:
-                all_gly_resids[(segchain.getSegname(), segchain.getChid(), residue.getResnum(), residue.getIcode())] = residue
+                all_gly_resids[(str(segchain.getSegname()), str(segchain.getChid()), int(residue.getResnum()), str(residue.getIcode()))] = residue
 
         for idx, segchain in enumerate(self.prody_protein):
             assert isinstance(segchain, pr.atomic.chain.Chain), "Prody object is not a chain."
@@ -193,7 +193,7 @@ class ProteinComplexData:
                         self.ligand_info.add_ligand(create_ligand_info(residue, residue_identifier))
 
                 elif is_amino_acid(residue):
-                    gly_residue = all_gly_resids[(segchain.getSegname(), segchain.getChid(), resnum, icode)]
+                    gly_residue = all_gly_resids[(str(segchain.getSegname()), str(segchain.getChid()), int(resnum), str(icode))]
                     phi, psi = compute_phi_psi_angles(gly_residue) # type: ignore
                     phi_psi = torch.tensor([phi, psi], dtype=torch.float)
                     residue_coords, residue_sequence_index = get_residue_coords(residue, olc_resname)
@@ -450,7 +450,7 @@ def is_amino_acid(res: pr.Residue) -> bool:
     """
     Given a prody residue object, return whether the residue is an amino acid.
     """
-    if res.getResname() in aa_long_to_short:
+    if res.getResname() in aa_long_to_short and all(res.select(f'name {a}') is not None for a in ('N', 'CA', 'C', 'O')):
         return True
     atom_names = set(res.copy().getNames())
     if all(x in atom_names  for x in ['N', 'CA', 'C', 'O']):
@@ -646,12 +646,12 @@ def output_protein_structure(full_atom_coords: torch.Tensor, amino_acid_indices:
     Write the protein structure to a ProDy AtomGroup Object.
     """
 
-    assert len(full_atom_coords) == len(amino_acid_indices), f"Coordinates and sequence indices must have the same number of elements {full_atom_coords.shape}, {amino_acid_indices.shape}"
-    assert len(full_atom_coords) == len(residue_metadata), f"Input lists must be the same length {full_atom_coords.shape}, {len(amino_acid_indices)}"
-    assert len(full_atom_coords) == len(nh_coords), f"Coordinates and NH coordinates must have the same number of elements {full_atom_coords.shape}, {nh_coords.shape}"
+    assert int(full_atom_coords.shape[0]) == len(amino_acid_indices), f"Coordinates and sequence indices must have the same number of elements {full_atom_coords.shape[0]}, {amino_acid_indices.shape}"
+    assert int(full_atom_coords.shape[0]) == len(residue_metadata), f"Input lists must be the same length {full_atom_coords.shape[0]}, {len(residue_metadata)}, {residue_metadata}"
+    assert int(full_atom_coords.shape[0]) == len(nh_coords), f"Coordinates and NH coordinates must have the same number of elements {full_atom_coords.shape[0]}, {nh_coords.shape}"
 
     if bfactors is not None:
-        assert len(full_atom_coords) == len(bfactors), f"Coordinates and B-factors must have the same number of elements {full_atom_coords.shape}, {bfactors.shape}"
+        assert int(full_atom_coords.shape[0]) == len(bfactors), f"Coordinates and B-factors must have the same number of elements {full_atom_coords.shape[0]}, {bfactors.shape}"
 
     atom_order_dict = hydrogen_extended_dataset_atom_order if full_atom_coords.shape[1] == 24 else dataset_atom_order
     if bfactors is None:
@@ -762,7 +762,11 @@ def run_inference(
 
 
 def parse_args():
-    default_weights_path = str(CURR_FILE_DIR_PATH / 'model_weights/laser_weights_0p1A_noise_ligandmpnn_split.pt')
+    # Previous default
+    # default_weights_path = str(CURR_FILE_DIR_PATH / 'model_weights/laser_weights_0p1A_noise_ligandmpnn_split.pt')
+
+    # New default: used no test/val set.
+    default_weights_path = str(CURR_FILE_DIR_PATH / 'model_weights/laser_weights_0p1A_nothing_heldout.pt')
 
     parser = argparse.ArgumentParser(description='Run LASErMPNN inference on a given PDB file.')
     # Required input:

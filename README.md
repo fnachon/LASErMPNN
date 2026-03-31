@@ -1,6 +1,8 @@
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/polizzilab/LASErMPNN/blob/main/run_lasermpnn.ipynb)
+
 # LASErMPNN: Small-Molecule Conditioned Protein Sequence Design
 
-### Check out the paper [here](https://www.biorxiv.org/content/10.1101/2025.04.22.649862v1)!
+### Check out the preprint [here](https://www.biorxiv.org/content/10.1101/2025.04.22.649862v1)!
 
 
 ![A block diagram of the LASErMPNN architecture depicting information flow through the network.](./images/laser_block_diagram.png)
@@ -11,17 +13,22 @@
 > Please make sure your ligand has the appropriate hydrogens (in the expected protonation state) attached when running the model or you may encounter unexpected behavior.
 > For an example of how to adjust protonation from a smiles string, check out the script `./protonate_and_add_conect_records.py` from the [NISE repo](https://github.com/polizzilab/NISE/blob/main/protonate_and_add_conect_records.py)
 
-### TODO:
-- [ ] Add Colab notebook.
-- [ ] Add pdb code dataset split text files to avoid digging into code.
-- [ ] Add LigandMPNN architecture retraining code.
 
 ### Environment Setup
 
 A minimal version of LASErMPNN could be run in inference mode in any Python environment with PyTorch, torch-scatter, and torch-cluster. 
 ProDy is used internally to read and write PDB files.
 
-To install the training environment, run the following set of commands using a [MiniForge](https://github.com/conda-forge/miniforge/releases/tag/24.11.3-2) installation (recommended) or an existing conda installation with a libmamba solver.
+To ensure your conda installation is using the libmamba solver, run `conda config --show-sources` 
+and ensure the output has `solver: libmamba` at the bottom. 
+If not, run `conda config --set-solver libmamba`.
+
+
+The commands below will create an environment called `lasermpnn` which you can then `conda activate lasermpnn` to run the LASErMPNN CLI scripts.
+
+#### CUDA 11 Instructions
+
+To install the training environment on a system running CUDA 11 (check your cuda version by running `nvcc --version`), run the following set of commands using a [MiniForge](https://github.com/conda-forge/miniforge/releases/tag/24.11.3-2) installation (recommended) or an existing conda installation with a libmamba solver (see above).
 
 ```bash
 conda env create -f conda_env.yml -y
@@ -35,9 +42,15 @@ conda env create -f Mac_conda_env.yml -y
 
 This will create an environment called `lasermpnn`.
 
-To ensure your conda installation is using the libmamba solver, run `conda config --show-sources` 
-and ensure the output has `solver: libmamba` at the bottom. 
-If not, run `conda config --set-solver libmamba`.
+#### CUDA 12 Instructions
+
+To install the training environment on a system running CUDA 12 (check your cuda version by running `nvcc --version`), run the following set of commands using a [MiniForge](https://github.com/conda-forge/miniforge/releases/tag/24.11.3-2) installation (recommended) or an existing conda installation with a libmamba solver (see above).
+
+This was tested on a system with CUDA 12.4, you might need to update the specfic CUDA version at the top of the `conda_env_12p4.yml` file if you have a different CUDA 12.x version.
+
+```bash
+conda env create -f conda_env_12p4.yml -y
+```
 
 ### Installation
 
@@ -67,7 +80,7 @@ positional arguments:
 options:
   -h, --help            show this help message and exit
   --model_weights MODEL_WEIGHTS, -w MODEL_WEIGHTS
-                        Path to dictionary of torch.save()ed model state_dict and training parameters. Default: /nfs/polizzi/bfry/programs/LASErMPNN/model_weights/laser_weights_0p1A_noise_ligandmpnn_split.pt
+                        Path to dictionary of torch.save()ed model state_dict and training parameters. Default: /nfs/polizzi/bfry/programs/LASErMPNN/model_weights/laser_weights_0p1A_nothing_heldout.pt
   --output_path OUTPUT_PATH, -o OUTPUT_PATH
                         Path to the output PDB file.
   --temp SEQUENCE_TEMP, -t SEQUENCE_TEMP
@@ -104,10 +117,10 @@ python -m LASErMPNN.run_batch_inference -h
 This script is useful to generate multiple designs for one or multiple inputs. Creates an output directory with subdirectories for each input file (unless run with a single input file).
 
 ```text
-usage: run_batch_inference.py [-h] [--designs_per_batch DESIGNS_PER_BATCH] [--inputs_processed_simultaneously INPUTS_PROCESSED_SIMULTANEOUSLY] [--model_weights_path MODEL_WEIGHTS_PATH] [--sequence_temp SEQUENCE_TEMP]
-                              [--first_shell_sequence_temp FIRST_SHELL_SEQUENCE_TEMP] [--chi_temp CHI_TEMP] [--chi_min_p CHI_MIN_P] [--seq_min_p SEQ_MIN_P] [--device INFERENCE_DEVICE] [--use_water] [--silent] [--ignore_key_mismatch]
-                              [--disabled_residues DISABLED_RESIDUES] [--fix_beta] [--repack_only_input_sequence] [--ignore_ligand] [--budget_residue_sele_string BUDGET_RESIDUE_SELE_STRING] [--ala_budget ALA_BUDGET] [--gly_budget GLY_BUDGET]
-                              [--noncanonical_aa_ligand] [--fs_calc_ca_distance FS_CALC_CA_DISTANCE] [--fs_calc_burial_hull_alpha_value FS_CALC_BURIAL_HULL_ALPHA_VALUE] [--fs_no_calc_burial] [--disable_charged_fs]
+usage: run_batch_inference.py [-h] [--designs_per_batch DESIGNS_PER_BATCH] [--inputs_processed_simultaneously INPUTS_PROCESSED_SIMULTANEOUSLY] [--model_weights_path MODEL_WEIGHTS_PATH] [--sequence_temp SEQUENCE_TEMP] [--first_shell_sequence_temp FIRST_SHELL_SEQUENCE_TEMP]
+                              [--chi_temp CHI_TEMP] [--chi_min_p CHI_MIN_P] [--seq_min_p SEQ_MIN_P] [--device INFERENCE_DEVICE] [--use_water] [--silent] [--ignore_key_mismatch] [--disabled_residues DISABLED_RESIDUES] [--fix_beta] [--repack_only_input_sequence] [--ignore_ligand] [-c]
+                              [--budget_residue_sele_string BUDGET_RESIDUE_SELE_STRING] [--ala_budget ALA_BUDGET] [--gly_budget GLY_BUDGET] [--noncanonical_aa_ligand] [--repack_all] [--output_fasta] [--output_fasta_only] [--fs_calc_ca_distance FS_CALC_CA_DISTANCE]
+                              [--fs_calc_burial_hull_alpha_value FS_CALC_BURIAL_HULL_ALPHA_VALUE] [--fs_no_calc_burial] [--disable_charged_fs]
                               input_pdb_directory output_pdb_directory designs_per_input
 
 Run batch LASErMPNN inference.
@@ -124,7 +137,7 @@ options:
   --inputs_processed_simultaneously INPUTS_PROCESSED_SIMULTANEOUSLY, -n INPUTS_PROCESSED_SIMULTANEOUSLY
                         When passed a list of multiple files, this is the number of input files to process per pass through the GPU. Useful when generating a few sequences for many input files.
   --model_weights_path MODEL_WEIGHTS_PATH, -w MODEL_WEIGHTS_PATH
-                        Path to model weights. Default: /nfs/polizzi/bfry/programs/LASErMPNN/model_weights/laser_weights_0p1A_noise_ligandmpnn_split.pt
+                        Path to model weights. Default: /nfs/polizzi/bfry/programs/LASErMPNN/model_weights/laser_weights_0p1A_nothing_heldout.pt. Other weights can be found in the ./model_weights/ directory.
   --sequence_temp SEQUENCE_TEMP
                         Temperature for sequence sampling.
   --first_shell_sequence_temp FIRST_SHELL_SEQUENCE_TEMP
@@ -146,11 +159,19 @@ options:
   --repack_only_input_sequence
                         Repacks the input sequence without changing the sequence.
   --ignore_ligand       Ignore ligand in sampling.
+  -c, --constrain_ala_gly_sampling_to_exposed_non_secondary_structure
+                        If set, constrains number of ALA and GLY residues that can be sampled in exposed non-secondary structured residues. The max number of ALA and GLY residues is set by the --ala_budget and --gly_budget arguments.
   --budget_residue_sele_string BUDGET_RESIDUE_SELE_STRING
+                        A ProDy-style selection string to constrain the residues to sample ALA and GLY residues in. Can be used to override the automatic selection performed by the --constrain_ala_gly_sampling_to_exposed_non_secondary_structure flag.
   --ala_budget ALA_BUDGET
+                        Maximum number of ALA residues that can be sampled in exposed non-secondary structured residues. Only used if --constrain_ala_gly_sampling_to_exposed_non_secondary_structure is set or --budget_residue_sele_string is set. Default is 4.
   --gly_budget GLY_BUDGET
+                        Maximum number of GLY residues that can be sampled in exposed non-secondary structured residues. Only used if --constrain_ala_gly_sampling_to_exposed_non_secondary_structure is set or --budget_residue_sele_string is set. Default is 0.
   --noncanonical_aa_ligand
                         Featurize a noncanonical amino acid as a ligand.
+  --repack_all          Repack all residues, even those with chain_mask=1.
+  --output_fasta        Output a fasta file of the designed sequences in addition to the PDB files.
+  --output_fasta_only   Output only a fasta file of the designed sequences, does not write PDB files.
   --fs_calc_ca_distance FS_CALC_CA_DISTANCE
                         Distance between a ligand heavy atom and CA carbon to consider that carbon first shell.
   --fs_calc_burial_hull_alpha_value FS_CALC_BURIAL_HULL_ALPHA_VALUE
@@ -174,6 +195,13 @@ Training the Ligand Encoder module can be done with much lower memory and a sing
 
 ### Neural Iterative Selection & Expansion Implementation
 
-see https://www.github.com/polizzilab/NISE for a NISE protocol implementation using Boltz-1.
+see https://www.github.com/polizzilab/NISE for a NISE protocol implementation using Boltz-1x/2x.
 
 
+### Re-training LigandMPNN
+
+The code for retraining the LigandMPNN architecture on the streptavidin heldout split and reconstruction of the ligandmpnn training dataset are available as files suffixed with `_ligandmpnn`.
+We did not reimplement the LigandMPNN Sidechain Packer (only the sequence generation model) so the `.pdb` formatted outputs from sequence design with a retrained lignadmpnn model will have sidechains with all dihedral angles fixed to values of 0.0.
+It may be more useful to run any retrained ligandmpnn models using the `--output_fasta_only` flags since the predicted sidechains contain no useful information other than for threading the sequence onto the input backbone.
+
+To retrain the LigandMPNN model in the same way we tested it in the paper, follow the instructions above for Training LASErMPNN and see `train_ligandmpnn.py` for more information.

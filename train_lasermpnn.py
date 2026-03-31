@@ -412,6 +412,9 @@ def test(rank, test_dataloader, model, params):
 
     return output
 
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
 def train(rank, world_size, params):
 
     starting_epoch_idx = 0
@@ -447,6 +450,9 @@ def train(rank, world_size, params):
     model = LASErMPNN(ligand_encoder_params=ligand_enc_params, **params['model_params']).to(rank)
     params['model_params']['graph_structure']['lig_lig_knn_graph_k'] = ligand_enc_params['model_params']['graph_structure']['lig_lig_knn_graph_k']
     params['model_params']['lig_lig_edge_rbf_params'] = ligand_enc_params['model_params']['lig_lig_edge_rbf_params']
+
+    if rank == 0:
+        print('Num Model Params', count_parameters(model))
 
     # Load pretrained ligand encoder weights.
     fix_ligand_encoder_weights(model, checkpoint_state_dict, params['fix_ligand_encoder_weights'])
@@ -705,15 +711,16 @@ if __name__ == "__main__":
         }
     }
 
-    ALTERNATE_DATABASE_PATH = Path('/nfs/polizzi/bfry/programs/LASErMPNN-Public/')
+    # ALTERNATE_DATABASE_PATH = Path('/nfs/polizzi/bfry/programs/LASErMPNN-Public/')
     params = {
-        'debug': (debug := False),
+        'debug': (debug := True),
         'use_wandb': True and not debug,
         'use_data_augmentations': (augment := True),
         'random_seed': None if not debug else 42,
         'master_port': '12987',
 
-        'soluble_proteins_only': True,
+        # We attempted to create a 'soluble-mpnn' version of lasermpnn but the sequences it generates look qualitatively worse than the standard lasermpnn model.
+        'soluble_proteins_only': False,
 
         # Idealizes all residue frames if set to True, not ideal for foldability of natural proteins, but may be more useful for de novo design.
         'recompute_all_cb_atoms': True, 
@@ -731,14 +738,14 @@ if __name__ == "__main__":
         'pretrained_ligand_encoder_weights': CURR_FILE_DIR_PATH / 'model_weights/pretrained_ligand_encoder_weights.pt',
         # 'pretrained_ligand_encoder_weights': default_ligand_encoder_params, # Uncomment to disable pretrained ligand encoder.
 
-        # 'raw_dataset_path': CURR_FILE_DIR_PATH / 'databases/pdb_dataset/dataset_shelve',
-        # 'metadata_dataset_path': CURR_FILE_DIR_PATH / 'databases/pdb_dataset/metadata_shelve',
-        # 'clustering_dataframe_path': CURR_FILE_DIR_PATH / 'databases/pdb_dataset/cluster_representative_add_bromo.pkl',
-        # 'subcluster_pickle_path': CURR_FILE_DIR_PATH / 'databases/pdb_dataset/subcluster_pickle.pkl',
-        'raw_dataset_path': ALTERNATE_DATABASE_PATH / 'databases/pdb_dataset/dataset_shelve',
-        'metadata_dataset_path': ALTERNATE_DATABASE_PATH / 'databases/pdb_dataset/metadata_shelve',
-        'clustering_dataframe_path': ALTERNATE_DATABASE_PATH / 'databases/pdb_dataset/cluster_representative_add_bromo.pkl',
-        'subcluster_pickle_path': ALTERNATE_DATABASE_PATH / 'databases/pdb_dataset/subcluster_pickle.pkl',
+        'raw_dataset_path': CURR_FILE_DIR_PATH / 'databases/pdb_dataset/dataset_shelve',
+        'metadata_dataset_path': CURR_FILE_DIR_PATH / 'databases/pdb_dataset/metadata_shelve',
+        'clustering_dataframe_path': CURR_FILE_DIR_PATH / 'databases/pdb_dataset/cluster_representative_add_bromo.pkl',
+        'subcluster_pickle_path': CURR_FILE_DIR_PATH / 'databases/pdb_dataset/subcluster_pickle.pkl',
+        # 'raw_dataset_path': ALTERNATE_DATABASE_PATH / 'databases/pdb_dataset/dataset_shelve',
+        # 'metadata_dataset_path': ALTERNATE_DATABASE_PATH / 'databases/pdb_dataset/metadata_shelve',
+        # 'clustering_dataframe_path': ALTERNATE_DATABASE_PATH / 'databases/pdb_dataset/cluster_representative_add_bromo.pkl',
+        # 'subcluster_pickle_path': ALTERNATE_DATABASE_PATH / 'databases/pdb_dataset/subcluster_pickle.pkl',
 
         'num_epochs': 500,
         'batch_size': 6_000, # Practically, this is the batch size per GPU... so 5_000 * num_devices = total batch size.

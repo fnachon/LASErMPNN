@@ -12,13 +12,15 @@ from typing import *
 from pathlib import Path
 
 import torch
+import pydssp
 import numpy as np
 import prody as pr
 from tqdm import tqdm
 
 from LASErMPNN.utils.model import Sampled_Output
 from LASErMPNN.utils.pdb_dataset import BatchData
-from LASErMPNN.run_inference import get_protein_hierview, load_model_from_parameter_dict, sample_model, output_protein_structure, output_ligand_structure, ProteinComplexData
+from LASErMPNN.utils.burial_calc import compute_fast_ligand_burial_mask
+from LASErMPNN.run_inference import get_protein_hierview, load_model_from_parameter_dict, sample_model, output_protein_structure, output_ligand_structure, is_amino_acid, ProteinComplexData
 
 CURR_FILE_DIR_PATH = Path(__file__).parent
 
@@ -41,6 +43,59 @@ def parse_int_chunks_or_string(s):
             return s
     except:
         return s # Just in case.
+
+
+def compute_constrained_ala_gly_residues(protein: pr.AtomGroup) -> str:
+    """
+    Generates a ProDy-style selection string of residues that are on the surface of the protein and have secondary structure that we might want to restruct sampling of ALA and GLY residues within. 
+    Oversampling of ALA and GLY residues in these regions is a weird pathology of the model, but constraining the sampling generally helps keep the designs more realistic.
+    """
+    ns = []
+    cas = []
+    cs = []
+    os = []
+    test_atoms = []
+    for residue in protein.iterResidues():
+        if is_amino_acid(residue):
+            residue = residue.copy()
+            ns.append(residue.select('name N').getCoords())
+            cas.append(residue.select('name CA').getCoords())
+            cs.append(residue.select('name C').getCoords())
+            os.append(residue.select('name O').getCoords())
+
+            if residue.select('name CB') is not None:
+                test_atoms.append(residue.select('name CB').getCoords())
+            else:
+                test_atoms.append(residue.select('name CA').getCoords())
+
+    # Prepare inputs for pydssp and burial calculation.
+    ns = np.concatenate(ns)
+    cas = np.concatenate(cas)
+    cs = np.concatenate(cs)
+    os = np.concatenate(os)
+    test_atoms = np.concatenate(test_atoms)
+
+    # Compute DSSP labels for backbone atoms, input to PyDSSP is (B, N, 4, 3).
+    pydssp_input = np.stack([ns, cas, cs, os], axis=-2)[None, :]
+    dssp_output = pydssp.assign(pydssp_input)[0]
+    ss_mask = np.array([(str(x) in ('H', 'E')) for x in dssp_output])
+
+    # Compute burial mask for test atoms.
+    burial_mask = (~compute_fast_ligand_burial_mask(cas, test_atoms, num_rays=10)).numpy()
+    assert burial_mask.shape[0] == ss_mask.shape[0], f"Burial mask and secondary structure mask must have the same number of residues. {burial_mask.shape[0]} != {ss_mask.shape[0]}"
+    ss_and_exposed_mask = ss_mask & burial_mask
+
+    # Turn the masks into a prody style selection string.
+    selected_constrained_residues = []
+    idx = 0
+    for residue in protein.iterResidues():
+        if is_amino_acid(residue):
+            if ss_and_exposed_mask[idx]:
+                selected_constrained_residues.append(residue.ca.getResnums()[0])
+            idx += 1
+    constraint_string = 'resnum ' + ' '.join([f'{x}' for x in selected_constrained_residues])
+
+    return constraint_string
 
 
 def collate_batch_data(input_list: List[BatchData]) -> BatchData:
@@ -88,10 +143,11 @@ def _run_inference(
     ignore_chain_mask_zeros: bool = False, disabled_residues_list: List[str] = ['X'], bb_noise: float = 0.0,
     fix_beta: bool = False, repack_only_input_sequence: bool = False, 
     first_shell_sequence_temp: Optional[float] = None, ignore_ligand: bool = False, 
+    constrain_ala_gly_sampling_to_exposed_non_secondary_structure: bool = False,
     budget_residue_sele_string: str='', ala_budget: Optional[int]=None, gly_budget: Optional[int]=None,
     noncanonical_aa_ligand: bool = False, fs_calc_ca_distance: float = 10.0, 
     fs_calc_burial_hull_alpha_value: float = 9.0, fs_no_calc_burial: bool = False,
-    disable_charged_fs: bool = False
+    disable_charged_fs: bool = False, repack_all: bool = False
 ) -> Tuple[Sampled_Output, torch.Tensor, torch.Tensor, torch.Tensor, BatchData, ProteinComplexData]:
     model.eval()
 
@@ -120,14 +176,21 @@ def _run_inference(
         )
 
         budget_residue_mask = None
-        if budget_residue_sele_string != '' and budget_residue_sele_string is not None:
-            reference_mask_res_indices = protein_hv.getAtoms().select(f"protein and name CA").getResindices()
+        budget_string_is_set = budget_residue_sele_string != '' and budget_residue_sele_string is not None
+        if budget_string_is_set or constrain_ala_gly_sampling_to_exposed_non_secondary_structure:
+
+            # If the budget string is not set, compute the constrained ala gly residues.
+            if not budget_string_is_set:
+                budget_residue_sele_string = compute_constrained_ala_gly_residues(protein_hv.getAtoms())
+
+            # Compute the budget residue mask.
+            reference_mask_res_indices = protein_hv.getAtoms().select(f"name CA").getResindices()
             mask_sele_indices = protein_hv.getAtoms().select(f"(same residue as ({budget_residue_sele_string})) and name CA").getResindices()
             budget_residue_mask = torch.from_numpy(
                 np.isin(reference_mask_res_indices, mask_sele_indices)
             ).to(model.device).unsqueeze(0).expand(designs_per_input, -1).flatten()
             budget_residue_masks.append(budget_residue_mask)
-
+        
         batch_data = data.output_batch_data(fix_beta=fix_beta, num_copies=designs_per_input)
 
         if ignore_ligand:
@@ -151,7 +214,7 @@ def _run_inference(
         model, batch_data, sequence_temp, bb_noise, params, 
         disable_pbar=disable_pbar, chi_temp=chi_temp, chi_min_p=chi_min_p, 
         seq_min_p=seq_min_p, ignore_chain_mask_zeros=ignore_chain_mask_zeros, 
-        disabled_residues=disabled_residues_list, repack_all=repack_only_input_sequence, 
+        disabled_residues=disabled_residues_list, repack_all=repack_only_input_sequence or repack_all, 
         fs_sequence_temp=first_shell_sequence_temp,
         budget_residue_mask=budget_residue_mask, ala_budget=ala_budget, gly_budget=gly_budget,
         disable_charged_fs=disable_charged_fs
@@ -173,9 +236,11 @@ def run_inference(
         verbose=True, seq_min_p=0.0, chi_min_p=0.0, output_idx_offset=0, disabled_residues='', 
         fix_beta=False, repack_only_input_sequence=False, 
         first_shell_sequence_temp=None, ignore_ligand=False, noncanonical_aa_ligand=False,
+        constrain_ala_gly_sampling_to_exposed_non_secondary_structure: bool = False,
         budget_residue_sele_string: str='', ala_budget: Optional[int]=None, gly_budget: Optional[int]=None,
         fs_calc_ca_distance: float = 10.0, fs_calc_burial_hull_alpha_value: float = 9.0,
-        fs_no_calc_burial: bool = False, disable_charged_fs: bool = False
+        fs_no_calc_burial: bool = False, disable_charged_fs: bool = False, repack_all: bool = False,
+        output_fasta: bool = False, output_fasta_only: bool = False
 ):
     sequence_temp = float(sequence_temp) if sequence_temp else None
     chi_temp = float(chi_temp) if chi_temp else None
@@ -190,9 +255,12 @@ def run_inference(
 
     make_subdir = False
     if input_pdb_directory.is_dir():
-        all_input_files = [input_pdb_directory / x for x in input_pdb_directory.glob('*.pdb')]
+        all_input_files = list(input_pdb_directory.glob('*.pdb'))
+        all_input_files.extend(list(input_pdb_directory.glob('*.cif')))
         make_subdir = True
     elif input_pdb_directory.exists() and ('.pdb' in input_pdb_directory.name): # Could be .pdb or .pdb.gz
+        all_input_files = [input_pdb_directory]
+    elif input_pdb_directory.exists() and ('.cif' in input_pdb_directory.name): # Could be .cif or .cif.gz
         all_input_files = [input_pdb_directory]
     elif input_pdb_directory.exists() and input_pdb_directory.suffix == '.txt':
         all_input_files = [Path(x.strip()) for x in open(input_pdb_directory, 'r').readlines() if Path(x.strip()).exists()]
@@ -200,6 +268,10 @@ def run_inference(
     else:
         print(f'Could not find {input_pdb_directory}')
         raise FileNotFoundError
+
+    # Delete old fasta file if it exists
+    if (output_fasta or output_fasta_only) and (output_pdb_directory / 'designs.fasta').exists():
+        os.remove(output_pdb_directory / 'designs.fasta')
 
     # Loop over all files to design.
     try:
@@ -214,11 +286,13 @@ def run_inference(
 
     input_chunks = np.array_split(all_pdb_files_for_processing, (len(all_pdb_files_for_processing) // inputs_processed_simultaneously) + 1)
     for files_chunk in tqdm(input_chunks):
+        if len(files_chunk) == 0:
+            continue
         # Make an output subdirectory for each input file.
         output_files_chunk = []
         if make_subdir:
             for file in files_chunk:
-                output_subdir_path = output_pdb_directory / file.stem
+                output_subdir_path = output_pdb_directory / (file.stem if '.' not in file.stem else file.stem.split('.')[0])
                 output_subdir_path.mkdir(exist_ok=True, parents=True)
                 output_files_chunk.append(output_subdir_path)
         else:
@@ -236,14 +310,16 @@ def run_inference(
                 disabled_residues_list=disabled_residues_list, disable_pbar=not verbose,
                 fix_beta=fix_beta, repack_only_input_sequence=repack_only_input_sequence,
                 first_shell_sequence_temp=first_shell_sequence_temp, ignore_ligand=ignore_ligand,
+                constrain_ala_gly_sampling_to_exposed_non_secondary_structure=constrain_ala_gly_sampling_to_exposed_non_secondary_structure,
                 budget_residue_sele_string=budget_residue_sele_string, 
                 ala_budget=ala_budget, gly_budget=gly_budget,
                 noncanonical_aa_ligand=noncanonical_aa_ligand,
                 fs_calc_ca_distance=fs_calc_ca_distance, 
                 fs_calc_burial_hull_alpha_value=fs_calc_burial_hull_alpha_value,
-                fs_no_calc_burial=fs_no_calc_burial, disable_charged_fs=disable_charged_fs
+                fs_no_calc_burial=fs_no_calc_burial, disable_charged_fs=disable_charged_fs, repack_all=repack_all
             )
 
+            fasta_lines = []
             idx_offset = 0
             for jdx, data in enumerate(data_list):
                 for idx in range(curr_num_to_design):
@@ -257,9 +333,27 @@ def run_inference(
                         out_complex += out_lig
                     except:
                         pass
-                    pr.writePDB(str(output_files_chunk[jdx] / f"design_{idx+curr_output_idx_offset}.pdb"), out_complex)
+
+                    if not output_fasta_only:
+                        pr.writePDB(str(output_files_chunk[jdx] / f"design_{idx+curr_output_idx_offset}.pdb"), out_complex)
+                    
+                    if output_fasta or output_fasta_only:
+                        for chain in out_complex.getHierView():
+                            try:
+                                sequence = chain.select("name CA").getSequence()
+                                segment_name = chain.getSegnames()[0]
+                                chain_name = chain.getChids()[0]
+                                score = np.log10(chain.select('name CA').getBetas()).mean() # Add overall log probability score
+                                fasta_lines.append(f'>{data.pdb_code}_design_{idx+curr_output_idx_offset}_segment_{segment_name}_chain_{chain_name} score={score}\n{sequence}\n')
+                            except:
+                                pass
+
                 idx_offset += curr_num_to_design
-            
+
+            if output_fasta or output_fasta_only:
+                with open(output_pdb_directory / f'designs.fasta', 'a') as fasta_out:
+                    fasta_out.writelines(fasta_lines)
+
             curr_output_idx_offset += curr_num_to_design
             designs_remaining -= curr_num_to_design
 
@@ -271,7 +365,7 @@ def parse_args(default_weights_path: os.PathLike):
     parser.add_argument('designs_per_input', type=int, help='Number of designs to generate per input.')
     parser.add_argument('--designs_per_batch', '-b', type=int, default=30, help='Number of designs to generate per batch. If designs_per_input > designs_per_batch, chunks up the inference calls in batches of this size. Default is 30, can increase/decrease depending on available GPU memory.')
     parser.add_argument('--inputs_processed_simultaneously', '-n', type=int, default=5, help='When passed a list of multiple files, this is the number of input files to process per pass through the GPU. Useful when generating a few sequences for many input files.')
-    parser.add_argument('--model_weights_path', '-w', type=str, default=f'{default_weights_path}', help=f'Path to model weights. Default: {default_weights_path}')
+    parser.add_argument('--model_weights_path', '-w', type=str, default=f'{default_weights_path}', help=f'Path to model weights. Default: {default_weights_path}. Other weights can be found in the ./model_weights/ directory.')
 
     parser.add_argument('--sequence_temp', type=float, default=None, help='Temperature for sequence sampling.')
     parser.add_argument('--first_shell_sequence_temp', type=float, default=None, help='Temperature for first shell sequence sampling. Can be used to disentangle binding site temperature from global sequence temperature for harder folds.')
@@ -283,14 +377,19 @@ def parse_args(default_weights_path: os.PathLike):
     parser.add_argument('--use_water', action='store_true', help='Parses water (resname HOH) as part of a ligand.')
     parser.add_argument('--silent', dest='verbose', action='store_false', help='Silences all output except pbar.')
     parser.add_argument('--ignore_key_mismatch', action='store_false', help='Allows mismatched keys in checkpoint statedict')
-    parser.add_argument('--disabled_residues', type=str, default='X', help='Residues to disable in sampling.')
+    parser.add_argument('--disabled_residues', type=str, default='X,C', help='Residues to disable in sampling.')
     parser.add_argument('--fix_beta', action='store_true', help='If B-factors are set to 1, fixes the residue and rotamer, if not, designs that position.')
     parser.add_argument('--repack_only_input_sequence', action='store_true', help='Repacks the input sequence without changing the sequence.')
     parser.add_argument('--ignore_ligand', action='store_true', help='Ignore ligand in sampling.')
-    parser.add_argument('--budget_residue_sele_string', default=None, help='')
-    parser.add_argument('--ala_budget', type=int, default=4, help='')
-    parser.add_argument('--gly_budget', type=int, default=0, help='')
+    parser.add_argument('-c', '--constrain_ala_gly_sampling_to_exposed_non_secondary_structure', action='store_true', help='If set, constrains number of ALA and GLY residues that can be sampled in exposed non-secondary structured residues. The max number of ALA and GLY residues is set by the --ala_budget and --gly_budget arguments.')
+    parser.add_argument('--budget_residue_sele_string', default=None, help='A ProDy-style selection string to constrain the residues to sample ALA and GLY residues in. Can be used to override the automatic selection performed by the --constrain_ala_gly_sampling_to_exposed_non_secondary_structure flag.')
+    parser.add_argument('--ala_budget', type=int, default=4, help='Maximum number of ALA residues that can be sampled in exposed non-secondary structured residues. Only used if --constrain_ala_gly_sampling_to_exposed_non_secondary_structure is set or --budget_residue_sele_string is set.')
+    parser.add_argument('--gly_budget', type=int, default=0, help='Maximum number of GLY residues that can be sampled in exposed non-secondary structured residues. Only used if --constrain_ala_gly_sampling_to_exposed_non_secondary_structure is set or --budget_residue_sele_string is set.')
     parser.add_argument('--noncanonical_aa_ligand', action='store_true', help='Featurize a noncanonical amino acid as a ligand.')
+    parser.add_argument('--repack_all', action='store_true', help='Repack all residues, even those with chain_mask=1.')
+
+    parser.add_argument('--output_fasta', action='store_true', help='Output a fasta file of the designed sequences in addition to the PDB files.')
+    parser.add_argument('--output_fasta_only', action='store_true', help='Output only a fasta file of the designed sequences, does not write PDB files.')
 
     parser.add_argument('--fs_calc_ca_distance', type=float, default=10.0, help='Distance between a ligand heavy atom and CA carbon to consider that carbon first shell.')
     parser.add_argument('--fs_calc_burial_hull_alpha_value', type=float, default=9.0, help='Alpha parameter for defining convex hull. May want to try setting to larger values if using folds with larger cavities (ex: ~100.0).')
@@ -303,5 +402,10 @@ def parse_args(default_weights_path: os.PathLike):
 
 
 if __name__ == "__main__":
-    default_weights_path = CURR_FILE_DIR_PATH / 'model_weights/laser_weights_0p1A_noise_ligandmpnn_split.pt'
+    # Previous default, weights used in paper analyses
+    # default_weights_path = CURR_FILE_DIR_PATH / 'model_weights/laser_weights_0p1A_noise_ligandmpnn_split.pt'
+
+    # New default: used no test/val set.
+    default_weights_path = str(CURR_FILE_DIR_PATH / 'model_weights/laser_weights_0p1A_nothing_heldout.pt')
+
     run_inference(**parse_args(default_weights_path))
