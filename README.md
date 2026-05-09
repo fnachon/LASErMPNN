@@ -44,6 +44,17 @@ This was tested on a system with CUDA 12.4, you might need to update the specfic
 conda env create -f conda_env_12p4.yml -y
 ```
 
+### Testing your installation
+
+```bash
+# Clone LASErMPNN
+git clone https://github.com/polizzilab/LASErMPNN ./LASErMPNN/
+
+# Assuming LASErMPNN python environment is already installed and active (see above)
+# Generate 5 LASErMPNN sequences on example file (runs from parent directory of LASErMPNN installation):
+python -m LASErMPNN.run_batch_inference ./LASErMPNN/example_pdbs/4jnj-1_prot.pdb ./LASErMPNN/outputs_dir/ 5
+```
+
 ### Running Inference
 
 ```bash
