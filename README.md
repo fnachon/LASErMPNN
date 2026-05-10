@@ -46,6 +46,10 @@ conda env create -f conda_env_12p4.yml -y
 
 ### Testing your installation
 
+```
+From within the LASErMPNN repository, with the LASErMPNN python environment active, run the command `pytest -s` to run model equivariance checks and a test run of model inference capabilities`. This automatically runs the equivalent of the following to test model inference:
+```
+
 ```bash
 # Clone LASErMPNN
 git clone https://github.com/polizzilab/LASErMPNN ./LASErMPNN/
