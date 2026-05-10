@@ -473,6 +473,7 @@ class LASErMPNN(nn.Module):
     @torch.no_grad()
     def tied_sample(
             self, batch1: BatchData, batch2: BatchData, lambda_: float = 0.5, sequence_sample_temperature: Optional[Union[float, torch.Tensor]] = None, 
+            budget_residue_mask: Optional[torch.Tensor] = None, ala_budget: int = 4, gly_budget: int = 0,
             chi_angle_sample_temperature: Optional[float] = None, disabled_residues: Optional[list] = ['X'], 
             disable_pbar: bool = False, repack_all: bool = False
     ) -> Tuple[Sampled_Output, Sampled_Output]:
@@ -496,6 +497,9 @@ class LASErMPNN(nn.Module):
 
         if sequence_sample_temperature is not None:
             assert (isinstance(sequence_sample_temperature, torch.Tensor) and (sequence_sample_temperature.shape[0] == batch.num_residues or sequence_sample_temperature.numel() == 1)) or isinstance(sequence_sample_temperature, (int, float)), f"Sequence sample temperature must be a scalar or a tensor of shape (num_residues,). Got {sequence_sample_temperature}."
+
+        if budget_residue_mask is None:
+            budget_residue_mask = torch.zeros(batch1.num_residues, dtype=torch.bool, device=self.device)
 
         # 1 in chain mask tells us to sample sequence, a 0 tells us to use the input sequence stored in batch.sequence_indices.
         input_chi_angles_1 = batch1.chi_angles.nan_to_num()
@@ -533,6 +537,13 @@ class LASErMPNN(nn.Module):
             # Select current row in the batched decoding order.
             node_idces = batch1.decoding_order[:, idx]
             node_idces = node_idces[~node_idces.isnan()].long()
+
+            per_batch_ala_counts = scatter((output_tensors_1.sampled_sequence_indices == aa_short_to_idx['A']).float(), batch1.batch_indices, reduce='sum', dim_size=len(batch1.batch_indices.unique()))
+            per_batch_gly_counts = scatter((output_tensors_1.sampled_sequence_indices == aa_short_to_idx['G']).float(), batch1.batch_indices, reduce='sum', dim_size=len(batch1.batch_indices.unique()))
+            per_res_ala_over_budget = (per_batch_ala_counts >= ala_budget)[batch1.batch_indices]
+            per_res_gly_over_budget = (per_batch_gly_counts >= gly_budget)[batch1.batch_indices]
+            curr_res_ala_over_budget = per_res_ala_over_budget[node_idces] & budget_residue_mask[node_idces]
+            curr_res_gly_over_budget = per_res_gly_over_budget[node_idces] & budget_residue_mask[node_idces]
 
             # 1 in chain mask tells us to take sequence/chi from input data, a 0 tells us to sample it with the model.
             curr_chain_mask = chain_mask[node_idces]
@@ -606,10 +617,15 @@ class LASErMPNN(nn.Module):
             curr_out_logits_1 = self.sequence_output_layer(prot_node_stack_1[-1].scalars[node_idces])
             curr_out_logits_2 = self.sequence_output_layer(prot_node_stack_2[-1].scalars[node_idces])
             if disabled_residues is not None:
-                sampling_residue_mask = curr_chain_mask.bool()
+                sampling_residue_mask = ~(curr_chain_mask.bool())
                 for res_short in disabled_residues:
                     curr_out_logits_1[sampling_residue_mask, aa_short_to_idx[res_short]] = torch.finfo(curr_out_logits_1.dtype).min
                     curr_out_logits_2[sampling_residue_mask, aa_short_to_idx[res_short]] = torch.finfo(curr_out_logits_2.dtype).min
+                
+            curr_out_logits_1[curr_res_ala_over_budget, aa_short_to_idx['A']] = torch.finfo(curr_out_logits_1.dtype).min
+            curr_out_logits_1[curr_res_gly_over_budget, aa_short_to_idx['G']] = torch.finfo(curr_out_logits_1.dtype).min
+            curr_out_logits_2[curr_res_ala_over_budget, aa_short_to_idx['A']] = torch.finfo(curr_out_logits_2.dtype).min
+            curr_out_logits_2[curr_res_gly_over_budget, aa_short_to_idx['G']] = torch.finfo(curr_out_logits_2.dtype).min
 
             # Sample sequence indices if temperature is specified, otherwise take argmax.
             if sequence_sample_temperature is None:
@@ -633,7 +649,7 @@ class LASErMPNN(nn.Module):
             # Create masks for whether each chi angle is defined for each residue being decoded.
             #   Handle X residues by converting to Gly and sanity check we didn't sample them unless provided by chain_mask.
             sampled_x_residue_mask = torch.full_like(sampled_or_fixed_sequence_idx, aa_short_to_idx['X']) == sampled_or_fixed_sequence_idx
-            if sampled_x_residue_mask.any().item() and (~batch.chain_mask[node_idces][sampled_x_residue_mask]).any().item():
+            if sampled_x_residue_mask.any().item() and (~batch1.chain_mask[node_idces][sampled_x_residue_mask]).any().item():
                 # Allow X residues to be sampled if not disabling them or chain_mask is 0, otherwise crashes with assertion error.
                 assert (disabled_residues is None) or (not 'X' in disabled_residues), "Sampled an X residue when sampling X residues is disabled."
             x_to_gly_sampled_or_fixed_sequence_idx = sampled_or_fixed_sequence_idx.clone()
@@ -687,7 +703,7 @@ class LASErMPNN(nn.Module):
 
                 if not repack_all:
                     sampled_angles_1 = (curr_chain_mask * input_chi_angles_1[node_idces, chi_idx]) + ((1 - curr_chain_mask) * sampled_angles_1)
-                    samples_angles_2 = (curr_chain_mask * input_chi_angles_2[node_idces, chi_idx]) + ((1 - curr_chain_mask) * sampled_angles_2)
+                    sampled_angles_2 = (curr_chain_mask * input_chi_angles_2[node_idces, chi_idx]) + ((1 - curr_chain_mask) * sampled_angles_2)
 
                 curr_chi_encoding_1 = self.rotamer_builder.compute_binned_degree_basis_function(sampled_angles_1.unsqueeze(-1)).squeeze(1)
                 chi_prev_1 = torch.cat([chi_prev_1, curr_chi_encoding_1], dim=1)
