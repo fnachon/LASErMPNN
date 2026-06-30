@@ -91,7 +91,7 @@ def compute_constrained_ala_gly_residues(protein: pr.AtomGroup) -> str:
     for residue in protein.iterResidues():
         if is_amino_acid(residue):
             if ss_and_exposed_mask[idx]:
-                selected_constrained_residues.append(residue.ca.getResnums()[0])
+                selected_constrained_residues.append(residue.select('name CA').getResnums()[0])
             idx += 1
     constraint_string = 'resnum ' + ' '.join([f'{x}' for x in selected_constrained_residues])
 
