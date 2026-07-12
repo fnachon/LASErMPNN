@@ -6,7 +6,13 @@ channels:
 dependencies:
 - python==3.10
 - pip
-- pytorch==2.7.1
+# conda-forge's osx-arm64 pytorch build is cpu_generic-only: torch.backends.mps.is_available()
+# reports True but actually running an op on 'mps' crashes. Install pytorch via pip instead (see
+# below) to get a real MPS/Metal-accelerated build.
+- libblas=*=*accelerate  # avoids an OpenMP runtime clash between pip-installed pytorch (bundles
+                          # its own libomp) and conda's openblas-linked numpy/scipy (also linked
+                          # against libomp) -- without this, importing torch + numpy in the same
+                          # process aborts with "OMP: Error #15".
 - scipy
 - numpy
 - pandas
@@ -25,7 +31,13 @@ dependencies:
 - tqdm
 - rdkit-to-params
 - pip:
+  - torch
   - pykeops
-  - torch-scatter -f https://data.pyg.org/whl/torch-2.7.0+cpu.html  
-  - torch-cluster -f https://data.pyg.org/whl/torch-2.7.0+cpu.html
+  - pybind11  # required by pykeops to JIT-compile LazyTensor kernels
+  # torch-scatter/torch-cluster have no macOS wheels and compile from source against whatever
+  # pytorch is installed. If this step fails during `conda env create`, install them manually
+  # afterwards with: pip install --no-build-isolation torch-scatter torch-cluster
+  - torch-scatter
+  - torch-cluster
   - pdbecif
+  - pydssp
