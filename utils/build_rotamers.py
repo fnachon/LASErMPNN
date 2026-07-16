@@ -11,6 +11,7 @@ import torch.nn.functional as F
 
 from typing import Tuple, Optional, Union
 from .constants import MAX_NUM_RESIDUE_ATOMS, MAX_NUM_PROTONATED_RESIDUE_ATOMS, MAX_NUM_TRIPLETS_PER_RESIDUE, CHI_BIN_MIN, CHI_BIN_MAX, COVALENT_HYDROGEN_BOND_MAX_DISTANCE, ideal_aa_coords, ideal_bond_lengths, ideal_bond_angles, aa_to_chi_angle_atom_index, aa_to_leftover_atoms, alignment_indices, aa_short_to_idx, ideal_prot_aa_coords, aa_to_hydrogen_alignment_triad_indices, aa_to_hydrogen_alignment_index, optional_hydrogen_map, hydrogen_extended_dataset_atom_order, aa_to_chi_angle_mask, atom_to_atomic_number
+from .helper_functions import mps_safe_double
 
 class RotamerBuilder(nn.Module):
     """
@@ -165,7 +166,7 @@ class RotamerBuilder(nn.Module):
         output_coords = F.pad(heavy_atom_coords, (0, 0, 0, MAX_NUM_PROTONATED_RESIDUE_ATOMS - MAX_NUM_RESIDUE_ATOMS + 1, 0, 0), 'constant', torch.nan)
 
         # Create expanded ideal coordinates with hydrogen locations we need to align.
-        expanded_ideal_coords = self.ideal_prot_aa_coords[sequence_indices].double() # type: ignore
+        expanded_ideal_coords = mps_safe_double(self.ideal_prot_aa_coords[sequence_indices]) # type: ignore
         expanded_traid_indices = self.aa_to_hydrogen_alignment_triad_indices[sequence_indices] # type: ignore
         expanded_alignment_indices = self.aa_to_hydrogen_alignment_index[sequence_indices] # type: ignore
 
@@ -258,7 +259,7 @@ class RotamerBuilder(nn.Module):
         """
 
         # Create ideal atomic coordiantes for each residue and make a copy which we will use to compute alignment.
-        ideal_coords = self.ideal_aa_coords[sequence_indices].double() # type: ignore
+        ideal_coords = mps_safe_double(self.ideal_aa_coords[sequence_indices]) # type: ignore
         unadjusted_ideal_coords = ideal_coords.clone()
 
         # Separate the indices into the atoms that will be used to compute the next atom location and the next atom index.
@@ -370,7 +371,7 @@ class RotamerBuilder(nn.Module):
         )) 
 
         if backbone_alignment_matrices is None:
-            backbone_alignment_matrices = compute_alignment_matrices(fixed_backbone_coords.double(), mobile_backbone_coords)
+            backbone_alignment_matrices = compute_alignment_matrices(mps_safe_double(fixed_backbone_coords), mobile_backbone_coords)
 
         # Overwrite the aligned backbone coordinates with the true backbone coordinates to avoid only using ideal phi/psi angles.
         output_residx, output_coord_idx = (~ideal_coords[:, :, 0].isnan()).nonzero(as_tuple=True)

@@ -14,6 +14,21 @@ from typing import Sequence, Optional
 
 from torch_scatter import scatter_mean
 
+
+def mps_safe_double(x: torch.Tensor) -> torch.Tensor:
+    """MPS has no float64 support; stay in float32 there and use float64 elsewhere for precision."""
+    return x.float() if x.device.type == 'mps' else x.double()
+
+
+def mps_safe_knn_graph(x: torch.Tensor, k: int, loop: bool = False, batch: Optional[torch.Tensor] = None) -> torch.Tensor:
+    """torch_cluster's knn_graph only ships CPU/CUDA kernels; round-trip through CPU on MPS."""
+    from torch_cluster import knn_graph
+    if x.device.type != 'mps':
+        return knn_graph(x, k=k, loop=loop, batch=batch)
+    batch_cpu = batch.cpu() if batch is not None else None
+    return knn_graph(x.cpu(), k=k, loop=loop, batch=batch_cpu).to(x.device)
+
+
 def write_xyz_file(file_path: str, atom_symbols: Sequence, coordinates: Sequence, description: str = ""):
     """
     Writes input data to an xyz file.

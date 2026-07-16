@@ -10,7 +10,6 @@ from collections import defaultdict
 from sklearn.model_selection import train_test_split
 
 import torch
-from torch_cluster import knn_graph
 from torch_scatter import scatter
 from torch.utils.data import Dataset, Sampler
 
@@ -18,7 +17,7 @@ from .constants import MAX_PEPTIDE_LENGTH, MIN_TM_SCORE_FOR_SIMILARITY, HEAVY_AT
 from .build_rotamers import RotamerBuilder, compute_alignment_matrices, apply_transformation, extend_coordinates
 from .ligand_featurization import LigandFeaturizer
 from .hbond_network import RigorousHydrogenBondNetworkDetector, compute_hbonding_connected_component
-from .helper_functions import create_prody_protein_from_coordinate_matrix
+from .helper_functions import create_prody_protein_from_coordinate_matrix, mps_safe_double, mps_safe_knn_graph as knn_graph
 from dataclasses import dataclass
 
 
@@ -595,12 +594,12 @@ class BatchData():
         # Compute edge distances for protein_protein, ligand-protein, and ligand-ligand edges.
         self.pr_pr_edge_index = all_prot_prot_eidces
         self.lig_pr_edge_index = all_lig_prot_eidces
-        self.lig_pr_edge_distance = torch.cdist(self.backbone_coords[all_lig_prot_eidces[1]].double(), noised_lig_coords[all_lig_prot_eidces[0]].unsqueeze(1).double()).squeeze(-1).float()
+        self.lig_pr_edge_distance = torch.cdist(mps_safe_double(self.backbone_coords[all_lig_prot_eidces[1]]), mps_safe_double(noised_lig_coords[all_lig_prot_eidces[0]].unsqueeze(1))).squeeze(-1).float()
         self.pr_pr_edge_distance = torch.cdist(self.backbone_coords[all_prot_prot_eidces[0]], self.backbone_coords[all_prot_prot_eidces[1]]).flatten(start_dim=1)
 
         assert all_lig_nodes.shape[0] == all_lig_node_masks.shape[0], f'test: {all_lig_nodes.shape, all_lig_node_masks.shape}.'
 
-        lig_lig_edge_distance = torch.cdist(noised_lig_coords[all_lig_lig_eidces[0]].unsqueeze(1).double(), noised_lig_coords[all_lig_lig_eidces[1]].unsqueeze(1).double()).flatten().float()
+        lig_lig_edge_distance = torch.cdist(mps_safe_double(noised_lig_coords[all_lig_lig_eidces[0]].unsqueeze(1)), mps_safe_double(noised_lig_coords[all_lig_lig_eidces[1]].unsqueeze(1))).flatten().float()
         self.ligand_data = LigandData(
             all_lig_nodes, noised_lig_coords, all_lig_batch_indices, 
             all_lig_subbatch_indices, all_lig_lig_eidces, lig_lig_edge_distance, 
@@ -799,7 +798,7 @@ def compute_ligand_protein_knn_graph(
         lig_index_offset, prot_index_offset, lig_lig_eidx, lig_atomic_number_idces, use_aliphatic_ligand_hydrogens
 ) -> torch.Tensor:
     # Identify the residues with CA coordinates within connection radius to ligand.
-    ca_distances = torch.cdist(curr_complex_ca_coords.double(), curr_lig_coords.unsqueeze(0).double()).squeeze(0)
+    ca_distances = torch.cdist(mps_safe_double(curr_complex_ca_coords), mps_safe_double(curr_lig_coords.unsqueeze(0))).squeeze(0)
 
     num_ligand_atoms = curr_lig_coords.shape[0]
     if not use_aliphatic_ligand_hydrogens:
