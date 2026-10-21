@@ -10,14 +10,15 @@ from collections import defaultdict
 from sklearn.model_selection import train_test_split
 
 import torch
-from torch_scatter import scatter
+from .scatter_ops import scatter
 from torch.utils.data import Dataset, Sampler
 
 from .constants import MAX_PEPTIDE_LENGTH, MIN_TM_SCORE_FOR_SIMILARITY, HEAVY_ATOM_CONTACT_DISTANCE_THRESHOLD, COVALENT_HYDROGEN_BOND_MAX_DISTANCE, aa_short_to_idx, aa_idx_to_short, atom_to_atomic_number, aa_to_chi_angle_mask, ligandmpnn_validation_pdb_codes, ligandmpnn_training_pdb_codes, ligandmpnn_test_pdb_codes, ideal_prot_aa_coords, hydrogen_extended_dataset_atom_order
 from .build_rotamers import RotamerBuilder, compute_alignment_matrices, apply_transformation, extend_coordinates
 from .ligand_featurization import LigandFeaturizer
 from .hbond_network import RigorousHydrogenBondNetworkDetector, compute_hbonding_connected_component
-from .helper_functions import create_prody_protein_from_coordinate_matrix, mps_safe_double, mps_safe_knn_graph as knn_graph
+from .helper_functions import create_prody_protein_from_coordinate_matrix, mps_safe_double
+from .graph_ops import knn_graph
 from dataclasses import dataclass
 
 

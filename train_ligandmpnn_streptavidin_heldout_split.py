@@ -28,7 +28,7 @@ from LASErMPNN.utils.pdb_dataset_ligandmpnn import UnclusteredProteinChainDatase
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from torch_scatter import scatter_mean, scatter
+from LASErMPNN.utils.scatter_ops import scatter_mean, scatter
 
 # Distributed training imports.
 import torch.distributed as dist

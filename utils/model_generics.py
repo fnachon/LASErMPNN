@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.parameter import Parameter
-from torch_scatter import scatter_softmax, scatter
+from .scatter_ops import scatter_softmax, scatter
 from dataclasses import dataclass
 
 from typing import Union, Tuple, List, Optional, Callable

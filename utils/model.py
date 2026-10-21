@@ -1,8 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_scatter import scatter, scatter_min, scatter_max, scatter_log_softmax, scatter_softmax
-from torch_cluster import radius_graph
+from .scatter_ops import scatter, scatter_min, scatter_softmax
 from tqdm import tqdm
 from copy import deepcopy
 

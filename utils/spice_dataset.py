@@ -8,7 +8,7 @@ from collections import defaultdict
 
 import torch
 import torch.nn.functional as F
-from torch_cluster import knn_graph
+from .graph_ops import knn_graph
 from torch.utils.data import Dataset, Sampler
 
 from rdkit import Chem

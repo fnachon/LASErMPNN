@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from .ligand_featurization import LigandFeaturizer
 from .build_rotamers import RotamerBuilder
 from .constants import ON_ON_HYDROGEN_BOND_DISTANCE_CUTOFF, ON_S_HYDROGEN_BOND_DISTANCE_CUTOFF, S_TO_S_HYDROGEN_BOND_DISTANCE_CUTOFF, MAX_NUM_PROTONATED_RESIDUE_ATOMS, MIN_HBOND_ANGLE, COVALENT_HYDROGEN_BOND_MAX_DISTANCE, GENERIC_COVALENT_BOND_MAX_DISTANCE, POSSIBLE_HYBRIDIZATION_LIST, atom_to_atomic_number, aa_to_hbond_donor_index_map, aa_to_hbond_acceptor_map, aa_short_to_idx, aa_idx_to_short
-from torch_scatter import scatter
+from .scatter_ops import scatter
 from typing import Tuple, Optional
 
 MIN_HBOND_DISTANCE = 2.3

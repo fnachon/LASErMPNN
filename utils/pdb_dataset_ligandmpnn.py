@@ -9,8 +9,8 @@ from collections import defaultdict
 from sklearn.model_selection import train_test_split
 
 import torch
-from torch_cluster import knn_graph, radius_graph
-from torch_scatter import scatter
+from .graph_ops import knn_graph, radius_graph
+from .scatter_ops import scatter
 from torch.utils.data import Dataset, Sampler
 
 from .constants import MAX_PEPTIDE_LENGTH, MIN_TM_SCORE_FOR_SIMILARITY, HEAVY_ATOM_CONTACT_DISTANCE_THRESHOLD, COVALENT_HYDROGEN_BOND_MAX_DISTANCE, aa_short_to_idx, aa_idx_to_short, atom_to_atomic_number, aa_to_chi_angle_mask, ligandmpnn_validation_pdb_codes, ligandmpnn_training_pdb_codes, ligandmpnn_test_pdb_codes, ideal_prot_aa_coords, hydrogen_extended_dataset_atom_order

@@ -3,7 +3,7 @@ import torch
 from tqdm import tqdm
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_scatter import scatter
+from .scatter_ops import scatter
 from typing import Optional, Tuple, Union
 from dataclasses import dataclass
 

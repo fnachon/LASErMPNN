@@ -11,7 +11,7 @@ from scipy.spatial.transform import Rotation
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from torch_scatter import scatter
+from LASErMPNN.utils.scatter_ops import scatter
 
 from LASErMPNN.utils.model import SpiceDatasetPretrainingModule
 from LASErMPNN.utils.spice_dataset import UnclusteredSpiceDataset, SpiceDatasetClusterSampler, SpiceBatchData, collate_spice_data, POSSIBLE_DEGREE_LIST, POSSIBLE_HYBRIDIZATION_LIST, POSSIBLE_NUM_HYDROGENS_LIST, POSSIBLE_FORMAL_CHARGE_LIST, POSSIBLE_IS_AROMATIC_LIST

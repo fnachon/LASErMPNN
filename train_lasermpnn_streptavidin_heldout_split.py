@@ -32,7 +32,7 @@ from LASErMPNN.utils.pdb_dataset import UnclusteredProteinChainDataset, Clustere
 
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from torch_scatter import scatter_mean, scatter
+from LASErMPNN.utils.scatter_ops import scatter_mean, scatter
 
 # Distributed training imports.
 import torch.distributed as dist
