@@ -4,7 +4,7 @@ channels:
   - pyg
   - defaults
 dependencies:
-- python==3.10
+- python=3.14
 - pip
 # conda-forge's osx-arm64 pytorch build is cpu_generic-only: torch.backends.mps.is_available()
 # reports True but actually running an op on 'mps' crashes. Install pytorch via pip instead (see
@@ -21,7 +21,6 @@ dependencies:
 - biopython
 - h5py
 - pytest
-- ProDy
 - matplotlib
 - seaborn
 - jupyter
@@ -31,13 +30,9 @@ dependencies:
 - tqdm
 - rdkit-to-params
 - pip:
-  - torch
+  - torch>=2.14
   - pykeops
   - pybind11  # required by pykeops to JIT-compile LazyTensor kernels
-  # torch-scatter/torch-cluster have no macOS wheels and compile from source against whatever
-  # pytorch is installed. If this step fails during `conda env create`, install them manually
-  # afterwards with: pip install --no-build-isolation torch-scatter torch-cluster
-  - torch-scatter
-  - torch-cluster
+  - prody
   - pdbecif
   - pydssp
